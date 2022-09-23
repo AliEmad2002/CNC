@@ -3,11 +3,11 @@ This SW runs CNC milling and drilling machine by G-Code interfacing*.
 (not all G-code methods are implemented, only the needed ones)
 
 # 2. Targets
-Mainly targeted for STM32F401 MCU, anyways it can be easly ported into other
+Mainly targeted for STM32F401 MCU, anyways it can be easily ported into other
 targets*. (target must meet the requirements mentioned in section 5)
 
 # 3. Interfacing
-It could be interfaced using any of the popular softwares that sends G-code*.
+It could be interfaced using any of the popular programs that sends G-code*.
 (one may use the interfacing SW implemented here: <$$$$$$$$$$>)
 
 # 4. Highlighted features:
@@ -18,10 +18,10 @@ It could be interfaced using any of the popular softwares that sends G-code*.
     from EEPROM)
   
   - Spindle fault protection*. (even if spindle is of closed loop speed control,
-    the SW requieres self HW speed measurement - if this feature is to be activated -
+    the SW requires self HW speed measurement - if this feature is to be activated -
     to halt the operation if speed is out of a user configured protected band)
   
-  # 5. Target requierements
+  # 5. Target requirements
     -
     -
     -
