@@ -4,8 +4,7 @@ This SW runs CNC milling and drilling machine by G-Code interfacing*.
 
 # 2. Targets
 Mainly targeted for STM32F401 MCU, anyways it can be easly ported into
-any other target*. (target must have certain peripherals. To be mentioned
-in section <$$>)
+any other target*. (target must have requirements mentioned in section 5)
 
 # 3. Interfacing
 It could be interfaced using any of the popular softwares that sends G-code*.
@@ -21,7 +20,12 @@ It could be interfaced using any of the popular softwares that sends G-code*.
     the SW requieres self HW speed measurement - if this feature is to be activated -
     to halt the operation if speed is out of a user configured protected band)
   
-  # 5. Acknowledgement
+  # 5. Target requierements
+    -
+    -
+    -
+  
+  # 6. Acknowledgement
   
 
 Here's a video of this SW in action:
