@@ -3,8 +3,8 @@ This SW runs CNC milling and drilling machine by G-Code interfacing*.
 (not all G-code methods are implemented, only the needed ones)
 
 # 2. Targets
-Mainly targeted for STM32F401 MCU, anyways it can be easly ported into
-any other target*. (target must have requirements mentioned in section 5)
+Mainly targeted for STM32F401 MCU, anyways it can be easly ported into other
+targets*. (target must have requirements mentioned in section 5)
 
 # 3. Interfacing
 It could be interfaced using any of the popular softwares that sends G-code*.
