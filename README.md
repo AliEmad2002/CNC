@@ -11,7 +11,8 @@ It could be interfaced using any of the popular softwares that sends G-code*.
 (one may use the interfacing SW implemented here: <$$$$$$$$$$>)
 
 # 4. Highlighted features:
-  - Auto Leveling*. (To obtain very accurate results in terms of milling depth)
+  - Auto Leveling*. (To obtain very accurate results in terms of milling depth, 
+    and compensate minor mechanical error)
   
   - Resume after power loss*. (configurations and depth-map are restored from
   EEPROM)
