@@ -14,8 +14,8 @@ It could be interfaced using any of the popular softwares that sends G-code*.
   - Auto Leveling*. (To obtain very accurate results in terms of milling depth, 
     and compensate minor mechanical error)
   
-  - Resume after power loss*. (configurations and depth-map are restored from
-  EEPROM)
+  - Resume after power loss*. (current line count, configurations and depth-map are restored
+    from EEPROM)
   
   - Spindle fault protection*. (even if spindle is of closed loop speed control,
     the SW requieres self HW speed measurement - if this feature is to be activated -
