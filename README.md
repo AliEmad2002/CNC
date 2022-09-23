@@ -32,7 +32,7 @@ It could be interfaced using any of the popular softwares that sends G-code*.
   the process of learning, trying, making mistakes, debugging, optimizing, and agile-ing over.
 
   Thanks to every single person helped me in this project, technically or emotionally, demonstrating principles,
-  sharing previous experiences, providing hardware material, or much more that I may not even remember.
+  sharing previous experiences, providing hardware material, or much more that I may not even recall.
   -	Family.						      For their patience and taking over a lot off me.
   -	Assiut Robotics team.		For proving - nearly most of - hardware material and workspace.
   -	Ahmed Osama.				    (technical demonstrator at electronics and communication department, faculty of
