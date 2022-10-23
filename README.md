@@ -15,7 +15,7 @@ It could be interfaced using any of the popular programs that sends G-code*.
     and compensate minor mechanical error)
   
   - Resume after power loss*. (current line count, configurations and depth-map are restored
-    from EEPROM)
+    from flash memory)
   - Messages stack*. (to avoid steppers' scatter when large chunk / small displacements is sent)
   - Spindle fault protection*. (even if spindle is of closed loop speed control,
     the SW requires self HW speed measurement - if this feature is to be activated -
