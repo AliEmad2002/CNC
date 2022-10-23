@@ -46,3 +46,5 @@ It could be interfaced using any of the popular programs that sends G-code*.
   -	Mohammed G. Eleish.     (SW engineer at Valeo Egypt). For sharing previous experiences in AVR MCU interfacing.
    # 7. Doc
    Here's a video of this SW in action:
+   
+   # 8. * all used COTS are implemented and documented on COTS project on my github.
