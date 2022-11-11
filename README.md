@@ -47,4 +47,4 @@ It could be interfaced using any of the popular programs that sends G-code*.
    # 7. Doc
    Here's a video of this SW in action:
    
-   # 8. * all used COTS are implemented and documented in COTS project on my github.
+   # 8. * all used COTS are implemented and documented in COTS project on my github. https://github.com/AliEmad2002/STM32F401x_10x_COTS
