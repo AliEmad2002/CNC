@@ -42,7 +42,7 @@ It could be interfaced using any of the popular programs that sends G-code*.
   -	Mohammed Mahmoud Abdo.  (colleague student). For all the time we spent brainstorming and discussing methods.
   -	Tarek M. Medhat.        (colleague student). User interface designer.
   -	Ahmed Abdul-Baset.      (colleague student). PCB designer.
-  -	Kareem Essam.           (Fresh graduate computer engineer). For sharing previous experiences in CNC machines.
+  -	Kareem Essam.           (SW engineer at Valeo Egypt). For sharing previous experiences in CNC machines.
   -	Mohammed G. Eleish.     (SW engineer at Valeo Egypt). For sharing previous experiences in AVR MCU interfacing.
    # 7. Doc
    Here's a video of this SW in action:
