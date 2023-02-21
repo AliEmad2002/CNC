@@ -13,13 +13,10 @@ It could be interfaced using any of the popular programs that sends G-code*.
 # 4. Highlighted features:
   - Auto Leveling*. (To obtain very accurate results in terms of milling depth, 
     and compensate minor mechanical error)
-  
-  - Resume after power loss*. (current line count, configurations and depth-map are restored
-    from flash memory)
     
   - Messages stack*. (to avoid steppers' scatter when large chunk / small displacements is sent)
   
-  - Spindle fault protection*. (even if spindle is of closed loop speed control,
+  - To be added: Spindle fault protection*. (even if spindle is of closed loop speed control,
     the SW requires self HW speed measurement - if this feature is to be activated -
     to halt the operation if speed is out of a user configured protected band)
   
@@ -32,12 +29,12 @@ It could be interfaced using any of the popular programs that sends G-code*.
   sharing previous experiences, providing hardware material, or much more that I may not even recall.
   -	Family.                 For their patience and taking over a lot off me.
   -	Assiut Robotics team.   For proving - nearly most of - hardware material and workspace.
-  -	Ahmed Osama.            (technical demonstrator at electronics and communication department, faculty of
+  -	Ahmed Osama.            (teaching assistant at electronics and communication department, faculty of
                             engineering, Assiut university). For his guidance, supervision, and most importantly:
                             encouragement.
   -	Eslam Wael.             (colleague student). Mechanical engineer.
   -	Mohammed Mahmoud Abdo.  (colleague student). For all the time we spent brainstorming and discussing methods.
-  -	Tarek M. Medhat.        (colleague student). User interface designer.
+  -	Tarek M. Medhat.        (colleague student). Physical user interface.
   -	Ahmed Abdul-Baset.      (colleague student). PCB designer.
   -	Kareem Essam.           (SW engineer at Valeo Egypt). For sharing previous experiences in CNC machines.
   -	Mohammed G. Eleish.     (SW engineer at Valeo Egypt). For sharing previous experiences in AVR MCU interfacing.
