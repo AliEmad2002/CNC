@@ -16,7 +16,7 @@ It could be interfaced using any of the popular programs that sends G-code*.
     
   - Messages stack*. (to avoid steppers' scatter when large chunk / small displacements is sent)
   
-  - Spindle fault protection*. (even if spindle is of closed loop speed control,
+  - To be added: Spindle fault protection*. (even if spindle is of closed loop speed control,
     the SW requires self HW speed measurement - if this feature is to be activated -
     to halt the operation if speed is out of a user configured protected band)
   
