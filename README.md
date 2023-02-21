@@ -29,7 +29,7 @@ It could be interfaced using any of the popular programs that sends G-code*.
   sharing previous experiences, providing hardware material, or much more that I may not even recall.
   -	Family.                 For their patience and taking over a lot off me.
   -	Assiut Robotics team.   For proving - nearly most of - hardware material and workspace.
-  -	Ahmed Osama.            (technical demonstrator at electronics and communication department, faculty of
+  -	Ahmed Osama.            (teaching assistant at electronics and communication department, faculty of
                             engineering, Assiut university). For his guidance, supervision, and most importantly:
                             encouragement.
   -	Eslam Wael.             (colleague student). Mechanical engineer.
