@@ -602,6 +602,101 @@ u32 CNC_d64GetEstematedSpeed(
 }
 
 /*
+ * Gets d1, d2, d3, and updates maximum speed (if needed) based on Newton's
+ * distance, speed, acceleration equation. Further description and math explanation
+ * at: "when to accelerate, keep speed and decelerate.pdf" in notes folder in this
+ * repository.
+ */
+void CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(
+		s32 dTotal,
+		u32 speedStart, u32 speedEnd,
+		u32 acceleration,
+		s32* d1Ptr, s32* d2Ptr, s32* d3Ptr,
+		u32* speedMaxPtr
+	)
+{
+	/**	get square values of speeds first	**/
+	u64 speedStartSquared	= (u64)speedStart * (u64)speedStart;
+	u64 speedEndSquared		= (u64)speedEnd * (u64)speedEnd;
+	u64 speedMaxSquared		= (u64)(*speedMaxPtr) * (u64)(*speedMaxPtr);
+
+	/**	calculate d1	**/
+	/*	check the edge case first	*/
+	if (speedStart > *speedMaxPtr)
+	{
+		/*	d1 does not exist	*/
+		*d1Ptr = 0;
+
+		/*	maximum speed is the starting	*/
+		*speedMaxPtr = speedStart;
+		speedMaxSquared = speedStartSquared;
+	}
+
+	/*	otherwise	*/
+	else
+	{
+		*d1Ptr = (speedMaxSquared - speedStartSquared) / (u64)(2 * acceleration);
+	}
+
+	/**	calculate d3	**/
+	/*	check the edge case first	*/
+	if (speedEnd > *speedMaxPtr)
+	{
+		/*	d3 does not exist	*/
+		*d3Ptr = 0;
+
+		/*	maximum speed is the ending	*/
+		*speedMaxPtr = speedEnd;
+		speedMaxSquared = speedEndSquared;
+	}
+
+	/*	otherwise	*/
+	else
+	{
+		*d3Ptr = (speedMaxSquared - speedEndSquared) / (u64)(2 * acceleration);
+	}
+
+	/**	calculate d2	**/
+	/*	check the edge case first	*/
+	if (*d1Ptr + *d3Ptr > dTotal)
+	{
+		/*	d2 does not exist	*/
+		*d2Ptr = 0;
+
+		/*
+		 * maximum speed is the value that makes no d2 (see explanation pdf file,
+		 * mentioned in function description above).
+		 */
+		speedMaxSquared =
+			(u64)acceleration * (u64)dTotal +
+			(u64)(speedStartSquared + speedEndSquared) / 2;
+
+		*speedMaxPtr = sqrt(speedMaxSquared);
+
+		/*	recalculate d1 & d3 based on the new speedMax	*/
+		*d1Ptr = (speedMaxSquared - speedStartSquared) / (u64)(2 * acceleration);
+
+		*d3Ptr = (speedMaxSquared - speedEndSquared) / (u64)(2 * acceleration);
+	}
+
+	/*	otherwise	*/
+	else
+	{
+		*d2Ptr = dTotal - (*d1Ptr + *d3Ptr);
+	}
+}
+
+/*	Normalizes displacement vector	*/
+s32 CNC_s32GetNorm(s32 displacementArr[3])
+{
+	return (s32)sqrt(
+		(s64)displacementArr[0] * (s64)displacementArr[0] +
+		(s64)displacementArr[1] * (s64)displacementArr[1] +
+		(s64)displacementArr[2] * (s64)displacementArr[2]
+		);
+}
+
+/*
  * moves the three axis by a certain argumented displacement and speed/accel
  * params
  */
@@ -611,8 +706,12 @@ void CNC_voidMove3Axis(
 	u32 speed1, u32 speed2, u32 speedMax, u32 acceleration
 	)
 {
+	/*	Extracting stepper CNC->array (for readability only)	*/
 	Stepper_t* stepperArr = CNC->stepperArr;
 	
+	/*
+	 * grouping displacement three components in an array (to be absoluted next)
+	 */
 	s32 displacementsAbs[3] = {xDisplacement, yDisplacement, zDisplacement};
 	
 	/*
@@ -624,81 +723,54 @@ void CNC_voidMove3Axis(
 		stepperArr[1].currentPos,
 		stepperArr[2].currentPos};
 	
-	/*	magnitude of distance to be moved	*/
-	s32 displacementMagnitude = sqrt(
-		(s64)xDisplacement * (s64)xDisplacement +
-		(s64)yDisplacement * (s64)yDisplacement +
-		(s64)zDisplacement * (s64)zDisplacement
-		);
+	/*	magnitude of the distance to be moved	*/
+	s32 displacementMagnitude = CNC_s32GetNorm(displacementsAbs);
 	
-	/*	storing heavy calculations	*/
+	/*
+	 * Calculating distances of different types of acceleration.
+	 * (using Newton's movement equations)
+	 *
+	 * 	-	'd1' is along which the machine accelerates.
+	 * 	-	'd2' is along which the machine keeps a constant speed.
+	 * 	-	'd3' is along which the machine decelerates.
+	 */
+	s32 d1, d2, d3;
+	
+	CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(
+		displacementMagnitude, speed1, speed2, acceleration,
+		&d1, &d2, &d3, &speedMax);
+
+	/*	storing heavily repeated calculations	*/
 	u64 speed1Squared = (u64)speed1 * (u64)speed1;
-	u64 speed2Squared = (u64)speed2 * (u64)speed2;
 	u64 speedMaxSquared = (u64)speedMax * (u64)speedMax;
 	u32 accelerationDoubled = 2 * acceleration;
 	
-	/*	calculating distances of different types of acceleration	*/
-	s32 d1 =
-		speedMaxSquared / accelerationDoubled -
-		speed1Squared / accelerationDoubled;
-
-	s32 d3 =
-		speedMaxSquared / accelerationDoubled -
-		speed2Squared / accelerationDoubled;
-
-	s32 d2 = displacementMagnitude - (d1 + d3);
+	volatile u32 speed = (speed1 < SPEED_MIN) ? SPEED_MIN : speed1;					//	Should it still?
 	
-	/*
-	 * if maximum value of "speed" in this exact movement is not going to
-	 * reach "speedMax"
-	 */
-	if (d2 < 0)
-	{
-		/*
-		 * d2 value is to be divided into two relative parts, each added to d1 or d3 as needed,
-		 * to shorten d1, d2.
-		 */
-		s32 d2Half = d2 / 2;
-		
-		d1 = d1 + d2Half;
-		d3 = d3 + d2Half;
-		
-		/*	maximum speed in this movement	*/
-		speedMax = sqrt((u64)accelerationDoubled * (u64)d1 + speed1Squared);
-		speedMaxSquared = (u64)speedMax * (u64)speedMax;
-		
-		/*
-		 * this d2 can't ever be any thing other than zero, as this is compensated in the windows program.
-		 * same for d1 and d3, they can't ever be negative. but if any other commands that do not compensate
-		 * these calculations, it is handled by zeroing.
-		 */
-		d2 = 0;
-		
-		if (d1 < 0)
-			d1 = 0;
-		
-		if (d3 < 0)
-			d3 = 0;
-	}
-	
-	volatile u32 speed = (speed1 < SPEED_MIN) ? SPEED_MIN : speed1;
-	
+	/*	current count of sysTick ticks	*/
 	volatile u64 timeCurrent;
 	
+	/*
+	 * get direction of each stepper (based on sign of its displacement).
+	 * and absolute "displacementsAbs[]"
+	 */
 	Stepper_Direction_t dir[3];
+
 	for (u8 i = 0; i < 3; i++)
 	{
-		dir[i] = (displacementsAbs[i] >= 0) ?
-			Stepper_Direction_forward : Stepper_Direction_backward;
-		displacementsAbs[i] = labs(displacementsAbs[i]);
+		if (displacementsAbs[i] >= 0)
+		{
+			dir[i] = Stepper_Direction_forward;
+		}
+
+		else
+		{
+			dir[i] = Stepper_Direction_backward;
+			displacementsAbs[i] = -displacementsAbs[i];
+		}
 	}
 	
-	u32 dDoneMost = 0;
-	u32 dTotalMost;
-	u32 dDone[2] = {0, 0};
-	u32 dTotal[2];
-	
-	/*	sort axis by most displacement	*/
+	/*	sort axis descendingly based displacement absolute	*/
 	static u8 axisSorted[3] = {0, 1, 2};
 	
 	for (u8 i=0; i<2; i++)
@@ -717,8 +789,16 @@ void CNC_voidMove3Axis(
 		}
 	}
 	
+	/**
+	 * Stepping is going to be in the following way:
+	 * 	-	Stepper of most displacement makes a step (in its certain current speed).
+	 * 	-	Other two steppers follow.
+	 **/
+
+	/*	get displacement of the maximumly moving axis	*/
 	u32 mostDisplacementAbs = (u32)displacementsAbs[axisSorted[0]];
 	
+	/*	time between steps of the maximumly moving axis	*/
 	u64 deltaTMost =
 		(ticksPerSecond * (u64)displacementMagnitude) /
 		(u64)displacementsAbs[axisSorted[0]] / (u64)speed;
@@ -729,27 +809,38 @@ void CNC_voidMove3Axis(
 	 */
 	u32 stepsOfMostToStep[2];
 
+	/*	edge case (to avoid "%" by zero)	*/
 	if (displacementsAbs[axisSorted[1]] == 0)
 	{
 		stepsOfMostToStep[0] = displacementsAbs[axisSorted[0]] + 1;
 		// so it never steps.
 	}
+
+	/*	otherwise	*/
 	else
 	{
 		stepsOfMostToStep[0] =
 			displacementsAbs[axisSorted[0]] / displacementsAbs[axisSorted[1]];
 	}
 
+	/*	edge case (to avoid "%" by zero)	*/
 	if (displacementsAbs[axisSorted[2]] == 0)
 	{
 		stepsOfMostToStep[1] = displacementsAbs[axisSorted[0]] + 1;
 		// so it never steps.
 	}
+
+	/*	otherwise	*/
 	else
 	{
 		stepsOfMostToStep[1] =
 			displacementsAbs[axisSorted[0]] /displacementsAbs[axisSorted[2]];
 	}
+
+	u32 dDoneMost = 0;
+	u32 dTotalMost;
+	u32 dDone[2] = {0, 0};
+	u32 dTotal[2];
 	
 	/*	starting from speed1, accelerate to speedMax	*/
 	/*	stepper of most displacement magnitude is the only one to be timed,	*/
@@ -1010,31 +1101,56 @@ void CNC_voidMove3Axis(
  */
 void CNC_voidProbe(CNC_t* CNC)
 {
-	/*	start lowering the head until contact occurs (first touch)	*/
-	/*	assuming pin is pulled up, and contact is when it contacts GND	*/
+	/**
+	 * Start lowering the head until contact occurs (first touch).
+	 * Initially, pin must be pulled up and PCB must be grounded.
+	 **/
+
+	/*	current time (from sysTick)	*/
 	u64 timeCurrent = STK_u64GetElapsedTicks();
 
+	/*	number of steps made so far	*/
 	u32 steps = 0;
-	while(
-			GPIO_b8ReadPinDigital(
-				CNC->autoLevelingProbePort, CNC->autoLevelingProbePin)
-		)
+
+	/*	current state of the probe pin	*/
+	GPIO_OutputLevel_t probePinCurrentState =
+		GPIO_DIGITAL_READ(
+			CNC->autoLevelingProbePort, CNC->autoLevelingProbePin);
+
+	/*	as long as the probe pin state is still high	*/
+	while(probePinCurrentState == GPIO_OutputLevel_High)
 	{
-		if (
-				timeCurrent - CNC->stepperArr[2].lastTimeStamp >=
-				AL_SLOW_SPEED_TICKS_PER_STEP
-			)
+		/*	time passed since previous step in Z-axis	*/
+		u64 timeSincePrevStep = timeCurrent - CNC->stepperArr[2].lastTimeStamp;
+
+		/*
+		 * if it is time to step the z axis (based on the configured
+		 * "AL_SLOW_SPEED_TICKS_PER_STEP")
+		 */
+		if (timeSincePrevStep >= AL_SLOW_SPEED_TICKS_PER_STEP)
 		{
+			/*	step the Z-axis down	*/
 			Stepper_voidStep(
 				&CNC->stepperArr[2], Stepper_Direction_backward, timeCurrent);
+
+			/*	increment step counter	*/
 			steps++;
 
+			/*
+			 * if that step counter exceeds safety margin, execute error handler.
+			 */
 			if (steps > MAX_PROBE_STEPS)
 			{
 				CNC_ERR_HANDLER(MAX_PROBE_EXCEEDED_ERR_CODE);
 			}
 		}
 		
+		/*	update probe pin current state	*/
+		probePinCurrentState =
+				GPIO_DIGITAL_READ(
+					CNC->autoLevelingProbePort, CNC->autoLevelingProbePin);
+
+		/*	update current timestamp	*/
 		timeCurrent = STK_u64GetElapsedTicks();
 	}
 }

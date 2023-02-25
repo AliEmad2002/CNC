@@ -19,7 +19,7 @@
 #define Z_STEP_PIN							GPIO_Pin_A1
 #define Z_DIR_PIN							GPIO_Pin_A2
 
-/*	How frequently will speed be changed, in stk_ticks	*/
+/*	How frequently will speed be changed, in steps	*/
 #define SPEED_CHANGE_DELTA		 			64
 
 /*	steps per mm	*/

@@ -114,6 +114,23 @@ u32 CNC_d64GetEstematedSpeed(
 	);
 
 /*
+ * Gets d1, d2, d3, and updates maximum speed (if needed) based on Newton's
+ * distance, speed, acceleration equation. Further description and math explanation
+ * at: "when to accelerate, keep speed and decelerate.pdf" in notes folder in this
+ * repository.
+ */
+void CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(
+		s32 dTotal,
+		u32 speedStart, u32 speedEnd,
+		u32 acceleration,
+		s32* d1Ptr, s32* d2Ptr, s32* d3Ptr,
+		u32* speedMaxPtr
+	);
+
+/*	Normalizes displacement vector	*/
+s32 CNC_s32GetNorm(s32 displacementArr[3]);
+
+/*
  * moves the three axis by a certain argumented displacement and speed/accel
  * params
  */
