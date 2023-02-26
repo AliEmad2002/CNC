@@ -36,7 +36,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "Stack_interface.h"
+#include "Queue_interface.h"
 #include "Delay_interface.h"
 #include "Target_config.h"
 
@@ -59,14 +59,15 @@
 #include "CNC_Init_HAL.h"
 
 CNC_t CNC;
+Queue_t queue;
 
 int main(void)
 {
 	/*	power stabilization delay	*/
 	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
 
-	/*	init stack	*/
-	Stack_voidInit();
+	/*	init queue	*/
+	Queue_voidInit(&queue);
 
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
@@ -77,13 +78,13 @@ int main(void)
 	/*	Super-Loop	*/
 	while(1)
 	{
-		/*	wait for stack counter to be at least one item	*/
-		while(Stack_u16GetUsedLen() == 0);
+		/*	wait for queue counter to be at least one item	*/
+		while(Queue_u16GetLenUsed(&queue) == 0);
 		
-		G_Code_Msg_t* msgPtr;	/*	no need for allocation, stack will do it	*/
+		G_Code_Msg_t* msgPtr;	/*	no need for allocation, queue will do it	*/
 
-		/*	pop first of the stack	*/
-		Stack_ptrPop((void**)&msgPtr);
+		/*	pop first of the queue	*/
+		Queue_b8Pop(&queue, &msgPtr);
 
 		/*	execute the msg	*/
 		CNC_voidExecute(&CNC, msgPtr);

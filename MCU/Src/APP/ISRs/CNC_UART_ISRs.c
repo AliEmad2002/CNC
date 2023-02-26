@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "Stack_interface.h"
+#include "Queue_interface.h"
 #include "Delay_interface.h"
 #include "Target_config.h"
 #include <diag/trace.h>
@@ -36,10 +36,12 @@
 
 /*
  * Buffer that is temporarily holding the string being currently received,
- * until data passed passed to msg stack.
+ * until data passed passed to msg queue.
  */
 static char currentRecvStr[UART_MAX_STRLEN];
 static u32 currentRecvLen = 0;
+
+extern Queue_t queue;
 
 void CNC_voidRxCallBack(void)
 {
@@ -62,7 +64,7 @@ void CNC_voidRxCallBack(void)
 
 	/**
 	 * Otherwise, if the received byte is a terminator, parse "currentRecvStr"
-	 * to a msg, and push it into the stack, and clear "currentRecvLen".
+	 * to a msg, and push it into the queue, and clear "currentRecvLen".
 	 **/
 	if (byte == UART_COMPUTER_TERMINATOR_BYTE)
 	{
@@ -87,17 +89,17 @@ void CNC_voidRxCallBack(void)
 			(void)UART_enumSendByte(
 				UART_UNIT_NUMBER, UART_COMPUTER_RESEND_BYTE);
 
-			/*	don't push corrupted data to stack	*/
+			/*	don't push corrupted data to queue	*/
 			return;
 		}
 
-		/*	otherwise, add to message stack	*/
-		b8 addedToStackSuccess = Stack_b8Push(&msg);
+		/*	otherwise, add to message queue	*/
+		b8 addedToQueueSuccess = Queue_b8Push(&queue, &msg);
 
-		if (!addedToStackSuccess)
+		if (!addedToQueueSuccess)
 		{
-			/*	TODO: instead, pause receiving until an object is popped from stack	*/
-			trace_printf("Stack full\n");
+			/*	TODO: instead, pause receiving until an object is popped from queue	*/
+			trace_printf("Queue full\n");
 			while(1);
 		}
 	}
