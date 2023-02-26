@@ -297,7 +297,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	/*	store and init params	*/
 	CNC->autoLevelingEnable = true;
 
-	/*	N = V + 3	(G-Code convential)	*/
+	/*	N = V + 3	(G-Code convention)	*/
 	CNC->autoLevelingGridxN = (u8)CNC->point[4] + 3;
 	CNC->autoLevelingGridyN = (u8)CNC->point[5] + 3;
 
@@ -453,7 +453,7 @@ void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)
 	/*	enable auto leveling	*/
 	CNC->autoLevelingEnable = 1;
 
-	/*	read ROM	*/
+	/*	read flash	*/
 	/*	N's	*/
 	CNC->autoLevelingGridxN =
 		FPEC_u16ReadHalfWord(FPEC_HALF_WORD_ADDRESS(55, 0));
@@ -528,6 +528,7 @@ s32 CNC_s32Depth(CNC_t* CNC, s32 x, s32 y)
 		dTR * (xL + CNC->autoLevelingDx - x) * (y - yT) +
 		dBR * (x - xL) * (y - yT);
 	d /= (((s64)(CNC->autoLevelingDx)) * ((s64)(CNC->autoLevelingDy)));
+
 	return (s32)d;
 }
 
@@ -837,14 +838,34 @@ void CNC_voidMove3Axis(
 			displacementsAbs[axisSorted[0]] /displacementsAbs[axisSorted[2]];
 	}
 
+	/*
+	 * Number of steps the most displacement stepper have done so far in the
+	 * current displacement segment (d1, d2 or d3).
+	 */
 	u32 dDoneMost = 0;
+
+	/*
+	 * Number of steps the most displacement stepper have to travel in the
+	 * current displacement segment (d1, d2 or d3).
+	 */
 	u32 dTotalMost;
+
+	/*
+	 * Number of steps the two other steppers have done so far in the current
+	 * displacement segment (d1, d2 or d3).
+	 */
 	u32 dDone[2] = {0, 0};
+
+	/*	Number of steps the two other steppers have to travel in the current
+	 * displacement segment (d1, d2 or d3).
+	 */
 	u32 dTotal[2];
 	
-	/*	starting from speed1, accelerate to speedMax	*/
-	/*	stepper of most displacement magnitude is the only one to be timed,	*/
-	/*	while the other two don't need to, as they depend on the first	*/	
+	/**
+	 * Starting from speed1, accelerate to speedMax.
+	 * Stepper of most displacement magnitude is the only one to be timed,
+	 * while the other two don't need to, as they depend on the first.
+	 **/
 	dTotalMost =
 		((u64)d1 * (u64)displacementsAbs[axisSorted[0]]) /
 		displacementMagnitude;
@@ -852,6 +873,7 @@ void CNC_voidMove3Axis(
 	dTotal[0] =
 		((u64)d1 * (u64)displacementsAbs[axisSorted[1]]) /
 		displacementMagnitude;
+
 	dTotal[1] =
 		((u64)d1 * (u64)displacementsAbs[axisSorted[2]]) /
 		displacementMagnitude;
@@ -860,13 +882,16 @@ void CNC_voidMove3Axis(
 	{
 		/*	take timestamp	*/
 		timeCurrent = STK_u64GetElapsedTicks();
+
 		/*	check if it's time to step the most axis	*/
 		if (timeCurrent - stepperArr[axisSorted[0]].lastTimeStamp > deltaTMost)
 		{
 			/*	if so, step it (the most axis)	*/
 			Stepper_voidStep(
 				stepperArr + axisSorted[0], dir[axisSorted[0]], timeCurrent);
+
 			dDoneMost++;
+
 			for (u8 i = 0; i < 2; i++)
 			{
 				/*	check if it's time to step the minor axis	*/
@@ -893,6 +918,7 @@ void CNC_voidMove3Axis(
 							Stepper_voidStep(
 								stepperArr + axisSorted[1+i],
 								dir[axisSorted[1+i]], timeCurrent);
+
 							dDone[i]++;
 						}
 					}
@@ -907,37 +933,54 @@ void CNC_voidMove3Axis(
 				sqrtf(speed1Squared +
 				((u64)accelerationDoubled * (u64)dDoneMost *
 				(u64)displacementMagnitude) / displacementsAbs[axisSorted[0]]);
+
 			if (speed < SPEED_MIN)
 				speed = SPEED_MIN;
+
 			deltaTMost =
 					(ticksPerSecond * (u64)displacementMagnitude) /
 					(u64)displacementsAbs[axisSorted[0]] / (u64)speed;
 		}
 	}
 	
-	/* changing speed in case an interval change did not happen in d1	*/
+	/*
+	 * after d1 is done, changing speed in case an interval change did not
+	 * happen in d1.
+	 * (i.e.: dDoneMost < SPEED_CHANGE_DELTA)
+	 */
 	speed =
 		sqrtf(speed1Squared +
 		((u64)accelerationDoubled * (u64)dDoneMost *
 		(u64)displacementMagnitude) / displacementsAbs[axisSorted[0]]);
+
 	if (speed < SPEED_MIN)
 		speed = SPEED_MIN;
+
 	deltaTMost =
 		(ticksPerSecond * (u64)displacementMagnitude) /
 		(u64)displacementsAbs[axisSorted[0]] / (u64)speed;
 	
+	/*	subtract to done steps from the total displacement to be traveled	*/
 	mostDisplacementAbs -= dDoneMost;
+
+	/*	reset done steps. (as d2 has not yet started)	*/
 	dDoneMost = 0;
+
 	dDone[0] = 0;
+
 	dDone[1] = 0;
 
-	/*	stay on speedMax for d2	*/
+	/**
+	 * stay on speedMax for d2.
+	 **/
 	dTotalMost =
 		((u64)d2 * (u64)displacementsAbs[axisSorted[0]]) /
 		displacementMagnitude;
+
 	dTotal[0] =
 		((u64)d2 * (u64)displacementsAbs[axisSorted[1]]) /
 		displacementMagnitude;
+
 	dTotal[1] =
 		((u64)d2 * (u64)displacementsAbs[axisSorted[2]]) /
 		displacementMagnitude;
@@ -945,10 +988,12 @@ void CNC_voidMove3Axis(
 	while(dDoneMost < dTotalMost		&&		dDoneMost < mostDisplacementAbs)
 	{
 		timeCurrent = STK_u64GetElapsedTicks();
+
 		if (timeCurrent - stepperArr[axisSorted[0]].lastTimeStamp > deltaTMost)
 		{
 			Stepper_voidStep(
 				stepperArr + axisSorted[0], dir[axisSorted[0]], timeCurrent);
+
 			dDoneMost++;
 			
 			for (u8 i = 0; i < 2; i++)
@@ -972,6 +1017,7 @@ void CNC_voidMove3Axis(
 							Stepper_voidStep(
 								stepperArr + axisSorted[1+i],
 								dir[axisSorted[1+i]], timeCurrent);
+
 							dDone[i]++;
 						}
 					}
@@ -979,20 +1025,28 @@ void CNC_voidMove3Axis(
 			}
 		}
 	}
+
+	/*	subtract to done steps from the total displacement to be traveled	*/
 	mostDisplacementAbs -= dDoneMost;
 	
+	/*	reset done steps. (as d3 has not yet started)	*/
 	dDoneMost = 0;
+
 	dDone[0] = 0;
+
 	dDone[1] = 0;
 
-	/*	starting from speedMax, decelerate to speed2	*/
-	
+	/**
+	 * starting from speedMax, decelerate to speed2.
+	 **/
 	dTotalMost =
 		((u64)d3 * (u64)displacementsAbs[axisSorted[0]]) /
 		displacementMagnitude;
+
 	dTotal[0] =
 		((u64)d3 * (u64)displacementsAbs[axisSorted[1]]) /
 		displacementMagnitude;
+
 	dTotal[1] =
 		((u64)d3 * (u64)displacementsAbs[axisSorted[2]]) /
 		displacementMagnitude;
@@ -1000,10 +1054,12 @@ void CNC_voidMove3Axis(
 	while(dDoneMost < dTotalMost	&&		dDoneMost < mostDisplacementAbs)
 	{
 		timeCurrent = STK_u64GetElapsedTicks();
+
 		if (timeCurrent - stepperArr[axisSorted[0]].lastTimeStamp > deltaTMost)
 		{
 			Stepper_voidStep(
 				stepperArr + axisSorted[0], dir[axisSorted[0]], timeCurrent);
+
 			dDoneMost++;
 			
 			for (u8 i = 0; i < 2; i++)
@@ -1027,6 +1083,7 @@ void CNC_voidMove3Axis(
 							Stepper_voidStep(
 								stepperArr + axisSorted[1+i],
 								dir[axisSorted[1+i]], timeCurrent);
+
 							dDone[i]++;
 						}
 					}
@@ -1041,37 +1098,50 @@ void CNC_voidMove3Axis(
 				sqrtf(speedMaxSquared -
 				((u64)accelerationDoubled * (u64)dDoneMost *
 				(u64)displacementMagnitude) / displacementsAbs[axisSorted[0]]);
+
 			if (speed < SPEED_MIN)
 				speed = SPEED_MIN;
+
 			deltaTMost =
 				(ticksPerSecond * (u64)displacementMagnitude) /
 				(u64)displacementsAbs[axisSorted[0]] / (u64)speed;
 		}
 	}
+
+	/*	subtract to done steps from the total displacement to be traveled	*/
 	mostDisplacementAbs -= dDoneMost;
-	dDoneMost = 0;
-	dDone[0] = 0;
-	dDone[1] = 0;
 	
-	/*
+	/**
 	 * compensate precision error.
 	 * (for testing purposes only, to find mis-calculations in the
 	 * used methods, "error[n]" shall eventually be always zero - after
 	 * finishing heavy test on the method)
-	 */
+	 **/
 	s32 error[3] = {
 		xDisplacement - stepperArr[0].currentPos + posStart[0],
 		yDisplacement - stepperArr[1].currentPos + posStart[1],
 		zDisplacement - stepperArr[2].currentPos + posStart[2]
 	};
 	
+	/*
+	 * get direction of error compensation in each axis, and absolute of the
+	 * error value.
+	 */
 	for (u8 i=0; i<3; i++)
 	{
-		dir[i] = (error[i] >= 0.0) ?
-			Stepper_Direction_forward : Stepper_Direction_backward;
-		error[i] = labs(error[i]);
+		if (error[i] >= 0.0)
+		{
+			dir[i] = Stepper_Direction_forward;
+		}
+
+		else
+		{
+			dir[i] = Stepper_Direction_backward;
+			error[i] = -error[i];
+		}
 	}
 	
+	/*	Number of done steps so far in the error compensation	*/
 	u32 dDone3[3] = {0, 0, 0};
 	
 	while(
@@ -1081,6 +1151,7 @@ void CNC_voidMove3Axis(
 		)
 	{
 		timeCurrent = STK_u64GetElapsedTicks();
+
 		for (u8 i = 0; i < 3; i++)
 		{
 			if (timeCurrent - stepperArr[i].lastTimeStamp > deltaTMost)
@@ -1088,6 +1159,7 @@ void CNC_voidMove3Axis(
 				if (dDone3[i] < (u32)error[i])
 				{
 					Stepper_voidStep(stepperArr + i, dir[i], timeCurrent);
+
 					dDone3[i]++;
 				}
 			}
