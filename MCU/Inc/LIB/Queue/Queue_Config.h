@@ -12,6 +12,9 @@
 #ifndef INC_DATA_STRUCTURES_QUEUE_QUEUE_CONFIG_H_
 #define INC_DATA_STRUCTURES_QUEUE_QUEUE_CONFIG_H_
 
+#define ENABLE_QUEUE			0
+
+#if ENABLE_QUEUE
 /**
  * Maximum length of a queue object.
  *
@@ -70,5 +73,7 @@ typedef QUEUE_DATA_TYPE	Queue_Data_t;
 //extern void printData (s32* dPtr);
 //
 //#define QUEUE_PRINT_ELEMENT		printData
+
+#endif	/*	ENABLE_QUEUE	*/
 
 #endif /* INC_DATA_STRUCTURES_QUEUE_QUEUE_CONFIG_H_ */

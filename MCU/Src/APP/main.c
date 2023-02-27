@@ -67,7 +67,13 @@ int main(void)
 	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
 
 	/*	init queue	*/
-	Queue_voidInit(&queue);
+	#if ENABLE_QUEUE
+		Queue_voidInit(&queue);
+	#else
+		trace_printf("Please enable Queue in \"Queue_Config.h\"!\n");
+		trace_printf("Program Stopped\n");
+		return -1;
+	#endif
 
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();

@@ -14,6 +14,8 @@
 
 #include "Queue_Config.h"
 
+#if ENABLE_QUEUE
+
 typedef struct{
 	/*	array of pointers in which data would be allocated	*/
 	Queue_Data_t* ptrArr[QUEUE_MAX_LEN];
@@ -80,7 +82,7 @@ b8 Queue_b8Pop(Queue_t* q, Queue_Data_t** dataPP);
 // ******************************************************************************/
 //void Queue_voidPrint(Queue_t* q);
 
-
+#endif	/*	ENABLE_QUEUE	*/
 
 #endif /* INC_DATA_STRUCTURES_QUEUE_QUEUE_INTERFACE_H_ */
 

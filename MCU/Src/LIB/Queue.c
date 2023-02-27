@@ -13,7 +13,7 @@
 #include "Queue_Config.h"
 #include "Queue_Interface.h"
 
-
+#if ENABLE_QUEUE
 
 /*******************************************************************************
  * Init:
@@ -150,7 +150,7 @@ b8 Queue_b8Pop(Queue_t* q, Queue_Data_t** dataPP)
 //	PRINTF("=========================\n");
 //}
 
-
+#endif	/*	ENABLE_QUEUE	*/
 
 
 
