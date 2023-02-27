@@ -11,6 +11,7 @@
 
 /*	SELF	*/
 #include "Queue_Config.h"
+#include "Queue_Private.h"
 #include "Queue_Interface.h"
 
 #if ENABLE_QUEUE

@@ -5,7 +5,7 @@
  *      Author: Ali Emad
  *
  * Notice: every "Queue_t" object has a fixed length array of pointers, each
- * that are allocated and freed (dynamically and statically) using two user
+ * of them is allocated and freed (dynamically and statically) using two user
  * defined functions. Which depend on type of the data.
  */
 
