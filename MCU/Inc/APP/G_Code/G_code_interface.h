@@ -35,7 +35,7 @@ typedef struct{
 
 void G_Code_voidCopyMsg(G_Code_Msg_t** copyPtrPtr, G_Code_Msg_t* originalPtr);
 
-void G_Code_voidFreeMsg(G_Code_Msg_t** msgPtrPtr);
+void G_Code_voidFreeMsg(G_Code_Msg_t* msgPtr);
 
 u8 G_Code_u8FindNumberEnding(char* line, u8 start);
 

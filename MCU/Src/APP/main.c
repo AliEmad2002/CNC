@@ -96,7 +96,7 @@ int main(void)
 		CNC_voidExecute(&CNC, msgPtr);
 
 		/*	free msgPtr	*/
-		G_Code_voidFreeMsg(&msgPtr);
+		G_Code_voidFreeMsg(msgPtr);
 
 		/*	send cmd completed ack	*/
 		(void)UART_enumSendByte(UART_UnitNumber_1, '$');

@@ -43,9 +43,9 @@ void G_Code_voidCopyMsg(G_Code_Msg_t** copyPtrPtr, G_Code_Msg_t* originalPtr)
 	}
 }
 
-void G_Code_voidFreeMsg(G_Code_Msg_t** msgPtrPtr)
+void G_Code_voidFreeMsg(G_Code_Msg_t* msgPtr)
 {
-	free(*msgPtrPtr);
+	free(msgPtr);
 }
 
 /*

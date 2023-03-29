@@ -8,7 +8,7 @@
 /*	LIB	*/
 #include "Std_Types.h"
 #include "Bit_Math.h"
-#include "Print.h"
+//#include "Print.h"
 
 /*	SELF	*/
 #include "Stack_Config.h"
@@ -96,20 +96,20 @@ b8 Stack_b8Pop(Stack_t* s, Stack_Data_t** dataPP)
  ******************************************************************************/
 void Stack_voidPrint(Stack_t* s)
 {
-	PRINTF("Printing Stack object @ %u\n", (u32)s);
-
-	u16 i = 0;
-
-	Stack_Data_t* dPtr;
-
-	while(Stack_b8Pop(s, &dPtr))
-	{
-		PRINTF("%u: ", i++);
-		STACK_PRINT_ELEMENT(dPtr);
-		PRINTF("\n");
-	}
-
-	PRINTF("=========================\n");
+//	PRINTF("Printing Stack object @ %u\n", (u32)s);
+//
+//	u16 i = 0;
+//
+//	Stack_Data_t* dPtr;
+//
+//	while(Stack_b8Pop(s, &dPtr))
+//	{
+//		PRINTF("%u: ", i++);
+//		STACK_PRINT_ELEMENT(dPtr);
+//		PRINTF("\n");
+//	}
+//
+//	PRINTF("=========================\n");
 }
 
 #endif	/*	ENABLE_STACK	*/
