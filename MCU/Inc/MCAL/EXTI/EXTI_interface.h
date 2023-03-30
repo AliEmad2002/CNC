@@ -13,6 +13,7 @@
 #define EXTI_INTERFACE_H_
 
 #include "EXTI_private.h"
+#include "GPIO_Interface.h"
 
 typedef enum{
 	EXTI_Trigger_risingEdge	=	0,

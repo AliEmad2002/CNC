@@ -16,7 +16,7 @@
 
 #define UART_AFIO_MAP					0
 
-#define UART_BAUD_RATE					115200
+#define UART_BAUD_RATE					9600
 
 /******************************************************************************
  * 	Buffer configuration:
