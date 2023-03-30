@@ -2,7 +2,7 @@
   sharing previous experiences, providing hardware material, or much more that I may not even recall.
   -	Family.                 For their patience and taking over a lot off me.
   -	Assiut Robotics team.   For proving - nearly most of - hardware material and workspace (previously).
-  -	IOT lab, electrical engineering department in Assiut university. For providing ALL hardware material and workspace (currently)
+  -	IOT lab, electrical engineering department in Assiut university. For providing ALL hardware material and workspace (currently).
   -	Ahmed Osama.            (teaching assistant at electronics and communication department, faculty of
                             engineering, Assiut university). For his guidance, supervision, and most importantly:
                             encouragement.
