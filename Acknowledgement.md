@@ -1,11 +1,8 @@
-  Even though it may not be the best program among likes - hahaha - but I've learned and gained a quantity that I
-  myself am compensated with, hoping it would improve my skills, looking forward for the best and for never stopping
-  the process of learning, trying, making mistakes, debugging, optimizing, and agile-ing over.
-
   Thanks to every single person helped me in this project, technically or emotionally, demonstrating principles,
   sharing previous experiences, providing hardware material, or much more that I may not even recall.
   -	Family.                 For their patience and taking over a lot off me.
-  -	Assiut Robotics team.   For proving - nearly most of - hardware material and workspace.
+  -	Assiut Robotics team.   For proving - nearly most of - hardware material and workspace (previously).
+  -	IOT lab, electrical engineering department in Assiut university. For providing ALL hardware material and workspace (currently)
   -	Ahmed Osama.            (teaching assistant at electronics and communication department, faculty of
                             engineering, Assiut university). For his guidance, supervision, and most importantly:
                             encouragement.
