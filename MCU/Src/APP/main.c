@@ -43,43 +43,11 @@
 #include "CNC_Init_HAL.h"
 
 
-//int main(void)
-//{
-//	RCC_voidSysClockInit();
-//
-//	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_IOPA);
-//	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_IOPB);
-//	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_AFIO);
-//	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_TIM1);
-//
-//	DC_Motor_t motor;
-//	DC_Motor_voidInit(&motor, 1, TIM_Channel_1, 0);
-//
-//	volatile u16 speedPrev = 0;
-//	volatile u16 speed = 0;
-//	volatile u16* ptr = &speed;
-//
-//	while(1)
-//	{
-//		if (speed != speedPrev)
-//		{
-//			DC_Motor_voidSetSpeed(&motor, speed);
-//			speedPrev = speed;
-//		}
-//	}
-//
-//	return 0;
-//}
-
-
 CNC_t CNC;
 Queue_t queue;
 
 int main(void)
 {
-	/*	power stabilization delay	*/
-	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
-
 	/*	init queue	*/
 	#if ENABLE_QUEUE
 		Queue_voidInit(&queue);
@@ -91,6 +59,9 @@ int main(void)
 
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
+
+	/*	power stabilization delay	*/
+	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
 
 	/*	init HAL	*/
 	CNC_voidInitHAL();
