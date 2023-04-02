@@ -47,4 +47,7 @@ typedef long double					ld64;
 /*	pointer to function that takes and returns void	*/
 typedef void (*vvFunc_t)(void);
 
+#define ALWAYS_INLINE_STATIC	__attribute__((always_inline)) static inline
+#define ALWAYS_INLINE			__attribute__((always_inline)) inline
+
 #endif /* STD_TYPES_H_ */
