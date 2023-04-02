@@ -11,6 +11,8 @@
 
 void CNC_voidInitHAL(void);
 
+void CNC_voidInitSpindle(void);
+
 void CNC_voidInitSteppers(void);
 
 void CNC_voidInitCNC(void);

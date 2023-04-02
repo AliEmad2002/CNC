@@ -24,9 +24,11 @@
 #include "RCC_interface.h"
 #include "NVIC_interface.h"
 #include "FPEC_interface.h"
+#include "TIM_interface.h"
 
 /*	HAL	*/
 #include "Stepper_interface.h"
+#include "DC_Motor_Interface.h"
 
 /*	APP	*/
 #include "CNC_config.h"
@@ -34,6 +36,7 @@
 #include "CNC_interface.h"
 
 static Stepper_t stepperArr[3];
+static DC_Motor_t spindle;
 
 /*	from main.c	*/
 extern CNC_t CNC;
@@ -43,8 +46,18 @@ void CNC_voidInitHAL(void)
 	/*	init steppers	*/
 	CNC_voidInitSteppers();
 
+	/*	init spindle	*/
+	CNC_voidInitSpindle();
+
 	/*	init CNC object	*/
-	CNC_voidInit(&CNC, AUTO_LEVELING_PROBE_PIN, stepperArr);
+	CNC_voidInit(&CNC, AUTO_LEVELING_PROBE_PIN, stepperArr, &spindle);
+}
+
+void CNC_voidInitSpindle(void)
+{
+	DC_Motor_voidInit(
+		&spindle, SPINDLE_PWM_TIM_UNIT_NUMBER,
+		SPINDLE_PWM_TIM_CHANNEL, SPINDLE_PWM_AFIO_MAP);
 }
 
 void CNC_voidInitSteppers(void)

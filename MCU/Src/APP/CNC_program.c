@@ -19,12 +19,15 @@
 #include "Error_Handler_interface.h"
 
 /*	MCAL	*/
+#include "RCC_interface.h"
+#include "TIM_interface.h"
 #include "GPIO_interface.h"
 #include "STK_interface.h"
 #include "FPEC_interface.h"
 
 /*	HAL	*/
 #include "Stepper_interface.h"
+#include "DC_Motor_Interface.h"
 
 /*	SELF	*/
 #include "CNC_private.h"
@@ -37,7 +40,8 @@ static u64 ticksPerSecond;
  * initializes params of the CNC machine
  */
 void CNC_voidInit(
-	CNC_t* CNC, GPIO_Pin_t _autoLevelingProbePin, Stepper_t* stepperArr)
+	CNC_t* CNC, GPIO_Pin_t _autoLevelingProbePin,
+	Stepper_t* stepperArr, DC_Motor_t* spindle)
 {
 	/*	store and init auto leveling probe pin as pulled up input	*/
 	CNC->autoLevelingProbePin = _autoLevelingProbePin % 16;
@@ -45,8 +49,9 @@ void CNC_voidInit(
 	GPIO_voidSetPinInputPullUp(
 			CNC->autoLevelingProbePort, CNC->autoLevelingProbePin);
 	
-	/*	store stepperArr	*/
+	/*	store motors' objects	*/
 	CNC->stepperArr = stepperArr;
+	CNC->spindle = spindle;
 		
 	/*
 	 * relative positioning and auto leveling are initially turned off, to
@@ -112,6 +117,10 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 	{
 		switch (msgPtr->code)
 		{
+		case G_CODE_setSpindleSpeed:
+			DC_Motor_voidSetSpeed(CNC->spindle, msgPtr->paramNumArr[0]);
+			break;
+
 		case G_CODE_setMaxFeedrate:
 			CNC->mainParametersArr[CNC_maxFeedrate] =
 				msgPtr->paramNumArr[0] * STEPS_PER_MM;

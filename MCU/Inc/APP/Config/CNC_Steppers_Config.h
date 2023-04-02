@@ -19,6 +19,11 @@
 #define Z_STEP_PIN							GPIO_Pin_A1
 #define Z_DIR_PIN							GPIO_Pin_A2
 
+/*	spindles driving PWM signal	*/
+#define SPINDLE_PWM_TIM_UNIT_NUMBER			1
+#define SPINDLE_PWM_TIM_CHANNEL				TIM_Channel_1
+#define SPINDLE_PWM_AFIO_MAP				0
+
 /*	How frequently will speed be changed, in steps	*/
 #define SPEED_CHANGE_DELTA		 			64
 

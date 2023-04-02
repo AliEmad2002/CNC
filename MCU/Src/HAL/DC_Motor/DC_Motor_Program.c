@@ -23,11 +23,13 @@ void DC_Motor_voidInit(
 	motor->timerUnitNumber = timerUnitNumber;
 
 	TIM_u64InitPWM(
-		timerUnitNumber, channelNumber, TIM_OutputCompareMode_PWM2, 50 * 1000);
+		timerUnitNumber, channelNumber, TIM_OutputCompareMode_PWM1, 50 * 1000);
 
 	TIM_voidInitOutputPin(timerUnitNumber, channelNumber, afioMap);
 
 	TIM_voidEnableCounter(timerUnitNumber);
+
+	DC_Motor_voidSetSpeed(motor, 0);
 }
 
 ALWAYS_INLINE void DC_Motor_voidSetSpeed(DC_Motor_t* motor, u16 speed)

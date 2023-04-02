@@ -75,6 +75,9 @@ void CNC_voidInitRCC(void)
 	RCC_voidEnablePeripheralClk(gpioBus, RCC_PERIPHERAL_IOPC);
 	RCC_voidEnablePeripheralClk(gpioBus, RCC_PERIPHERAL_IOPB);
 	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_USART1);
+
+	/**	Enable timers	**/
+	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_TIM1);
 }
 
 void CNC_voidInitUART(void)

@@ -29,6 +29,7 @@ typedef struct
 	u32 speedCurrent;
 	u32 mainParametersArr[4];
 	Stepper_t* stepperArr;
+	DC_Motor_t* spindle;
 	
 	/*	auto leveling parameters	*/
 	b8 autoLevelingEnable;
@@ -68,7 +69,8 @@ typedef enum{
  * initializes params of the CNC machine
  */
 void CNC_voidInit(
-	CNC_t* CNC, GPIO_Pin_t _autoLevelingProbePin, Stepper_t* stepperArr);
+	CNC_t* CNC, GPIO_Pin_t _autoLevelingProbePin,
+	Stepper_t* stepperArr, DC_Motor_t* spindle);
 
 /*
  * allows the user to change the current position of the tool in memory,
