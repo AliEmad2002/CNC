@@ -106,6 +106,10 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			CNC_voidExecuteAutoLevelingSampling(CNC);
 			break;
 
+		case G_CODE_singleProbe:
+			CNC_voidProbe(CNC);
+			break;
+
 		case G_CODE_softwareSetPosition:
 			G_Code_voidCopyPoint(CNC->point, msgPtr);
 			CNC_voidExecuteSoftwareSetPosition(CNC);
@@ -303,7 +307,37 @@ void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MOVEMENTTYPE_t movementType)
  */
 void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 {
-	/*	store and init params	*/
+	/**
+	 * initially probe on (x, y) = (0, 0), and re-set z-displacement variable.
+	 * (to achieve re-usability of the same depth map with multiple tools, see
+	 * the issue for more details: https://github.com/AliEmad2002/CNC/issues/4)
+	 **/
+	/*	safety tool up	*/
+	CNC_voidMove3Axis(
+		CNC,
+		0, 0, AUTO_LEVELING_UP,
+		0, 0,
+		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
+		CNC->mainParametersArr[CNC_maxFeedrate],
+		CNC->mainParametersArr[CNC_accelerationRapid]);
+
+	/*	(x, y) = (0, 0)	*/
+	CNC_voidMove3Axis(
+		CNC,
+		0 - CNC->stepperArr[X].currentPos,
+		0 - CNC->stepperArr[Y].currentPos,
+		0, 0, 0,
+		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
+		CNC->mainParametersArr[CNC_maxFeedrate],
+		CNC->mainParametersArr[CNC_accelerationRapid]);
+
+	/*	probe	*/
+	CNC_voidProbe(CNC);
+
+	/*	reset z-displacement variable	*/
+	CNC->stepperArr[Z].currentPos = 0;
+
+	/**	store and init params	**/
 	CNC->autoLevelingEnable = true;
 
 	/*	N = V + 3	(G-Code convention)	*/
@@ -328,7 +362,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		(CNC->autoLevelingDx < CNC->autoLevelingEndY) ?
 			CNC->autoLevelingDx : CNC->autoLevelingDy;
 
-	/*	store in flash	*/
+	/**	store in flash	**/
 	/*	first: unlock, erase pages form 55 to 63, select programming mode	*/
 	if (FPEC_b8IsLocked())
 		FPEC_voidUnlock();
@@ -337,6 +371,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		FPEC_voidErasePage(i);
 	FPEC_voidDisablePageEraseMode();
 	FPEC_voidEnableProgrammingMode();
+
 	/*	store N	*/
 	FPEC_voidProgramHalfWord(
 		FPEC_HALF_WORD_ADDRESS(55, 0), CNC->autoLevelingGridxN);
@@ -352,10 +387,11 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(55, 6), CNC->autoLevelingEndX);
 	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(55, 8), CNC->autoLevelingEndY);
 
-	/*	start probing/sampling	*/
+	/**	start probing/sampling	**/
 	u8 i = 0;
 	u8 j = 0;
 
+	/*	y-axis loop	*/
 	for (
 		s32 y=CNC->autoLevelingStartY;
 			y<=CNC->autoLevelingEndY;
@@ -381,6 +417,13 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 			jFinal = CNC->autoLevelingGridxN - 1;
 			j = 0;
 		}
+
+		/*
+		 * x-axis loop.
+		 * (This loop is iterated in a little different way than that of y-axis,
+		 * because y-axis only goes down, while x-axis will go right in one row,
+		 * and go left on the next row, to save hypotenuse displacement time)
+		 */
 		while(1)
 		{
 			/*	go to that point of (x, y)	*/
@@ -425,15 +468,18 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		i++;
 	}
 	
-	/*	go home	*/
+	/**	go home	**/
+	/*	safety tool up	*/
 	CNC_voidMove3Axis(
 		CNC,
-		0, 0, AUTO_LEVELING_UP*10 - CNC->stepperArr[Z].currentPos,
+		0, 0, AUTO_LEVELING_UP - CNC->stepperArr[Z].currentPos,
 		0, 0,
 		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
 		CNC->mainParametersArr[CNC_maxFeedrate],
 		CNC->mainParametersArr[CNC_accelerationRapid]
 		);
+
+	/*	go to (x, y) = (0, 0)	*/
 	CNC_voidMove3Axis(
 		CNC,
 		-CNC->stepperArr[X].currentPos, -CNC->stepperArr[Y].currentPos,
@@ -443,6 +489,8 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		CNC->mainParametersArr[CNC_maxFeedrate],
 		CNC->mainParametersArr[CNC_accelerationRapid]
 		);
+
+	/*	tool down	*/
 	CNC_voidMove3Axis(
 		CNC,
 		0, 0, -CNC->stepperArr[Z].currentPos,

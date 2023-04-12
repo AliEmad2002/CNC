@@ -17,3 +17,7 @@ void go_to(serialib* sPtr, float x, float y, float z, float feedRate = -1.0);
 void manual_move(serialib* sPtr);
 
 void change_RAM_pos(serialib* sPtr);
+
+void reset_RAM_pos(serialib* sPtr);
+
+void probe(serialib* sPtr);

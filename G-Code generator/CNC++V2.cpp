@@ -146,6 +146,32 @@ void main_run_file(void)
     // clear console:
     system("cls");
 
+    // tool changing:
+    cout << "change tool? (y): ";
+    cin >> in;
+    if (in == 'y' || in == 'Y')
+    {
+        /*  Tool up with safety displacement (TODO: make variable)  */
+        go_to(&serial, 0, 0, 50);
+
+        /*  Wait for user to change the tool    */
+        in = '\0';
+        while (in != 'y' && in != 'Y')
+        {
+            cout << "done changing tool? (y): ";
+            cin >> in;
+        }
+
+        /*  Probe   */
+        probe(&serial);
+
+        /*  re-set z-axis displacement stored in MCU's RAM  */
+        reset_RAM_pos(&serial);
+    }
+
+    // clear console:
+    system("cls");
+
     // save G-code to hard drive:
     save_G_code_file(gLineArr, gLineCount, G_CODE_OUTPUT_FILE_DIR);
 

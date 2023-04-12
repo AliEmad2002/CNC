@@ -317,3 +317,13 @@ void change_RAM_pos(serialib* sPtr)
 
     send_string_ack(sPtr ,cmd.c_str());
 }
+
+void reset_RAM_pos(serialib* sPtr)
+{
+    send_string_ack(sPtr, "G92 X0 Y0 Z0");
+}
+
+void probe(serialib* sPtr)
+{
+    send_string_ack(sPtr, "G30");
+}
