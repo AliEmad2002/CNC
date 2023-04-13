@@ -1268,10 +1268,11 @@ void CNC_voidProbe(CNC_t* CNC)
 			/*
 			 * if that step counter exceeds safety margin, execute error handler.
 			 */
-			if (steps > MAX_PROBE_STEPS)
-			{
-				CNC_ERR_HANDLER(MAX_PROBE_EXCEEDED_ERR_CODE);
-			}
+//			if (steps > MAX_PROBE_STEPS)
+//			{
+//				trace_printf("Safe porping limit reached!\n");
+//				while(1);
+//			}
 		}
 		
 		/*	update probe pin current state	*/
