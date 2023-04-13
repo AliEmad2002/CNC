@@ -1,5 +1,5 @@
 ﻿/*
- * CNC-C++.cpp
+ * main.cpp
  *
  * Created: 09/06/2022 03:00:28 م
  *  Author: Ali Emad
@@ -162,8 +162,16 @@ void main_run_file(void)
             cin >> in;
         }
 
+        // clear console:
+        system("cls");
+
         /*  Probe   */
-        probe(&serial);
+        cout << "auto probing? (y), else manual: ";
+        cin >> in;
+        if (in == 'y' || in == 'Y')
+            probe(&serial, true);
+        else
+            probe(&serial, false);
 
         /*  re-set z-axis displacement stored in MCU's RAM  */
         reset_RAM_pos(&serial);

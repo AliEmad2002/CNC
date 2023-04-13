@@ -39,24 +39,6 @@ void CNC_auto_leveling(gLine* gLineArr, int& gLineCount, serialib* sPtr)
     send_string_ack(sPtr, cmd.c_str());
 }
 
-void CNC_change_tool(serialib* sPtr)
-{
-    // go up 5cm:
-    send_string_ack(sPtr, "G0 X0 Y0 Z50");
-
-    // wait for user to change tool:
-    cout << "press any char and hit enter when done changing tool: ";
-    char ch;
-    cin >> ch;
-
-    // go back to Z0:
-    send_string_ack(sPtr, "G0 X0 Y0 Z0");
-
-    // wait for user to tighten tool:
-    cout << "press any char and hit enter when done changing tool: ";
-    cin >> ch;
-}
-
 void CNC_send_G_code(serialib* sPtr)
 {
     ifstream GCodefile(G_CODE_OUTPUT_FILE_DIR);
@@ -83,7 +65,6 @@ void send_parameters_to_microcontroller(serialib* sPtr)
     GCodeMsg += to_string(ACCELERATION_RAPID);
     send_string_ack(sPtr, GCodeMsg.c_str());
 }
-
 
 void go_to(serialib* sPtr, float x, float y, float z, float feedRate)
 {
@@ -323,7 +304,88 @@ void reset_RAM_pos(serialib* sPtr)
     send_string_ack(sPtr, "G92 X0 Y0 Z0");
 }
 
-void probe(serialib* sPtr)
+void probe(serialib* sPtr, bool automatic)
 {
-    send_string_ack(sPtr, "G30");
+    if (automatic)
+    {
+        send_string_ack(sPtr, "G30");
+        return;
+    }
+
+    // clear console:
+    system("cls");
+
+    cout << "Manual probing mode\n";
+    cout << "use up & down arrows for moving the z-axis,\n";
+    cout << "use left & right arrows to change mm displacement per press,\n";
+    cout << "press \'x\' to increase speed, \'z\' to decrease speed\n";
+    cout << "press \'esc\' to exit\n";
+
+    float speed = 10.0;
+    float dPerPress = 2.0;
+
+    bool isKeyPressed;
+
+    while (1)
+    {
+        isKeyPressed = false;
+
+        if ((GetKeyState(VK_UP) | (GetKeyState('W'))) & 0x8000)
+        {
+            CNC_z -= dPerPress;
+            isKeyPressed = true;
+        }
+
+        if ((GetKeyState(VK_DOWN) | (GetKeyState('S'))) & 0x8000)
+        {
+            CNC_z += dPerPress;
+            isKeyPressed = true;
+        }
+
+
+        if ((GetKeyState(VK_RIGHT) | (GetKeyState('D'))) & 0x8000)
+        {
+            dPerPress++;
+            isKeyPressed = true;
+        }
+
+        if ((GetKeyState(VK_LEFT) | (GetKeyState('A'))) & 0x8000)
+        {
+            dPerPress--;
+            isKeyPressed = true;
+        }
+
+        if (GetKeyState('X') & 0x8000)
+        {
+            speed++;
+            isKeyPressed = true;
+        }
+
+        if (GetKeyState('Z') & 0x8000)
+        {
+            speed--;
+            isKeyPressed = true;
+        }
+
+        if (GetKeyState(VK_ESCAPE) & 0x8000)
+            break;
+
+        if (isKeyPressed)
+        {
+            go_to(sPtr, CNC_x, CNC_y, CNC_z, speed);
+
+            // update display:
+            system("cls");
+
+            cout << "Manual probing mode\n";
+            cout << "use up & down arrows for moving the z-axis,\n";
+            cout << "use left & right arrows to change mm displacement per press,\n";
+            cout << "press \'x\' to increase speed, \'z\' to decrease speed\n";
+            cout << "press \'esc\' to exit\n";
+            cout << "============================================================\n";
+            cout << "mm per press = " << dPerPress << endl;
+            cout << "speed        = " << speed << endl;
+        }
+    }
+
 }
