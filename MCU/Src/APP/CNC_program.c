@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <cmsis_gcc.h>
 #include "STD_TYPES.h"
 #include "BIT_MATH.h"
 #include "My_Math.h"
@@ -76,7 +77,7 @@ void CNC_voidInit(
  */
 void CNC_voidExecuteSoftwareSetPosition(CNC_t* CNC)
 {
-	for (u8 i=0; i<2; i++)
+	for (u8 i = 0; i < 3; i++)
 		CNC->stepperArr[i].currentPos = CNC->point[i];
 }
 
@@ -114,6 +115,13 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			G_Code_voidCopyPoint(CNC->point, msgPtr);
 			CNC_voidExecuteSoftwareSetPosition(CNC);
 			break;
+
+		default:
+			/*	log that a command was not recognized	*/
+			trace_printf("command not recognized. please look at \"msgPtr\" before continuing\n");
+			u8 cont = 0;
+			__BKPT(0);
+			while(!cont);
 		}
 	}
 	
@@ -121,8 +129,16 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 	{
 		switch (msgPtr->code)
 		{
-		case G_CODE_setSpindleSpeed:
+		case G_CODE_setSpindleSpeedCW:
 			DC_Motor_voidSetSpeed(CNC->spindle, msgPtr->paramNumArr[0]);
+			break;
+
+		case G_CODE_setSpindleSpeedCCW:
+			DC_Motor_voidSetSpeed(CNC->spindle, msgPtr->paramNumArr[0]);
+			break;
+
+		case G_CODE_turnSpindleOff:
+			DC_Motor_voidSetSpeed(CNC->spindle, 0);
 			break;
 
 		case G_CODE_setMaxFeedrate:
@@ -137,6 +153,13 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 		case G_CODE_enableAutoLeveling:
 			CNC_voidExecuteRestoreSavedAutoLevelingData(CNC);
 			break;
+
+		default:
+			/*	log that a command was not recognized	*/
+			trace_printf("command not recognized. please look at \"msgPtr\" before continuing\n");
+			u8 cont = 0;
+			__BKPT(0);
+			while(!cont);
 		}
 	}
 }
@@ -1268,10 +1291,11 @@ void CNC_voidProbe(CNC_t* CNC)
 			/*
 			 * if that step counter exceeds safety margin, execute error handler.
 			 */
-			if (steps > MAX_PROBE_STEPS)
-			{
-				CNC_ERR_HANDLER(MAX_PROBE_EXCEEDED_ERR_CODE);
-			}
+//			if (steps > MAX_PROBE_STEPS)
+//			{
+//				trace_printf("Safe porping limit reached!\n");
+//				while(1);
+//			}
 		}
 		
 		/*	update probe pin current state	*/

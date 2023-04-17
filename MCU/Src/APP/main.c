@@ -66,6 +66,26 @@ int main(void)
 	/*	init HAL	*/
 	CNC_voidInitHAL();
 
+//	volatile u8 x = 0;
+//	volatile u8 y = 0;
+//	volatile u8 z = 0;
+//	volatile u8 dirX = 0;
+//	volatile u8 dirY = 0;
+//	volatile u8 dirZ = 0;
+//	volatile u32 delay = 1;
+//	while (1)
+//	{
+//		if (x)
+//			Stepper_voidStep(CNC.stepperArr, dirX, STK_u64GetElapsedTicks());
+//		if (y)
+//			Stepper_voidStep(CNC.stepperArr+1, dirY, STK_u64GetElapsedTicks());
+//		if (z)
+//			Stepper_voidStep(CNC.stepperArr+2, dirZ, STK_u64GetElapsedTicks());
+//		Delay_voidBlockingDelayMs(delay);
+//	}
+
+	//CNC_voidProbe(&CNC);
+
 	/*	Super-Loop	*/
 	while(1)
 	{

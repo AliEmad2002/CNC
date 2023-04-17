@@ -69,10 +69,12 @@ void Stepper_voidStep(
 	/*	step	*/
 	GPIO_voidSetPinOutputLevel(
 		stepperPtr->stepPort, stepperPtr->stepPin, GPIO_OutputLevel_High);
+
 	Delay_voidDelay2Us();
+	//Delay_voidBlockingDelayMs(1);
+
 	GPIO_voidSetPinOutputLevel(
 		stepperPtr->stepPort, stepperPtr->stepPin, GPIO_OutputLevel_Low);
-	
 	/*	refresh timeStamp	*/
 	stepperPtr->lastTimeStamp = currentTime;
 }

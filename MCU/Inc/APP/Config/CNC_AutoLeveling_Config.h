@@ -14,7 +14,7 @@
 /*
  * Safety parameter to avoid miss contact machine self-destruction. (in steps)
  */
-#define MAX_PROBE_STEPS						(5 * STEPS_PER_MM)		// 5mm
+#define MAX_PROBE_STEPS						(10 * STEPS_PER_MM)		// 5mm
 
 /*
  * Enough air Z-axis distance between bit and material while scanning depth map
@@ -31,7 +31,7 @@
 #define AL_GRID_TRIMMER						20
 
 /*	probing speed inverse	*/
-#define AL_SLOW_SPEED_TICKS_PER_STEP		1600*5
+#define AL_SLOW_SPEED_TICKS_PER_STEP		1600*25
 
 
 

@@ -20,4 +20,6 @@ void change_RAM_pos(serialib* sPtr);
 
 void reset_RAM_pos(serialib* sPtr);
 
-void probe(serialib* sPtr);
+void change_tool(serialib* sPtr);
+
+void probe(serialib* sPtr, bool automatic);
