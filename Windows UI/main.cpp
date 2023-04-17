@@ -151,30 +151,7 @@ void main_run_file(void)
     cin >> in;
     if (in == 'y' || in == 'Y')
     {
-        /*  Tool up with safety displacement (TODO: make variable)  */
-        go_to(&serial, 0, 0, 50);
-
-        /*  Wait for user to change the tool    */
-        in = '\0';
-        while (in != 'y' && in != 'Y')
-        {
-            cout << "done changing tool? (y): ";
-            cin >> in;
-        }
-
-        // clear console:
-        system("cls");
-
-        /*  Probe   */
-        cout << "auto probing? (y), else manual: ";
-        cin >> in;
-        if (in == 'y' || in == 'Y')
-            probe(&serial, true);
-        else
-            probe(&serial, false);
-
-        /*  re-set z-axis displacement stored in MCU's RAM  */
-        reset_RAM_pos(&serial);
+        change_tool(&serial);
     }
 
     // clear console:

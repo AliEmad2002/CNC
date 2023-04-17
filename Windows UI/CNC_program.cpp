@@ -46,6 +46,21 @@ void CNC_send_G_code(serialib* sPtr)
     while (getline(GCodefile, line))
     {
         send_string_ack(sPtr, line.c_str());
+
+        // pause option:
+        if (GetKeyState(VK_ESCAPE) & 0x8000)
+        {
+            cout << "sending paused. press esc to continue.\n";
+            
+            // give user time to release the button:
+            Sleep(1000); // 1 second.
+            
+            while (1)
+            {
+                if (GetKeyState(VK_ESCAPE) & 0x8000)
+                    break;
+            }
+        }
     }
 }
 
@@ -301,7 +316,39 @@ void change_RAM_pos(serialib* sPtr)
 
 void reset_RAM_pos(serialib* sPtr)
 {
+    CNC_x = 0;
+    CNC_y = 0;
+    CNC_z = 0;
+
     send_string_ack(sPtr, "G92 X0 Y0 Z0");
+}
+
+void change_tool(serialib* sPtr)
+{
+    /*  Tool up with safety displacement (TODO: make variable)  */
+    go_to(sPtr, 0, 0, 20);
+
+    /*  Wait for user to change the tool    */
+    char in = '\0';
+    while (in != 'y' && in != 'Y')
+    {
+        cout << "done changing tool? (y): ";
+        cin >> in;
+    }
+
+    // clear console:
+    system("cls");
+
+    /*  Probe   */
+    cout << "auto probing? (y), else manual: ";
+    cin >> in;
+    if (in == 'y' || in == 'Y')
+        probe(sPtr, true);
+    else
+        probe(sPtr, false);
+
+    /*  re-set z-axis displacement stored in MCU's RAM  */
+    reset_RAM_pos(sPtr);
 }
 
 void probe(serialib* sPtr, bool automatic)
@@ -345,13 +392,13 @@ void probe(serialib* sPtr, bool automatic)
 
         if ((GetKeyState(VK_RIGHT) | (GetKeyState('D'))) & 0x8000)
         {
-            dPerPress++;
+            dPerPress += 0.01;
             isKeyPressed = true;
         }
 
         if ((GetKeyState(VK_LEFT) | (GetKeyState('A'))) & 0x8000)
         {
-            dPerPress--;
+            dPerPress -= 0.01;
             isKeyPressed = true;
         }
 
@@ -378,10 +425,10 @@ void probe(serialib* sPtr, bool automatic)
             system("cls");
 
             cout << "Manual probing mode\n";
-            cout << "use up & down arrows for moving the z-axis,\n";
-            cout << "use left & right arrows to change mm displacement per press,\n";
-            cout << "press \'x\' to increase speed, \'z\' to decrease speed\n";
-            cout << "press \'esc\' to exit\n";
+            cout << " * use up & down arrows for moving the z-axis,\n";
+            cout << " * use left & right arrows to change mm displacement per press,\n";
+            cout << " * press \'x\' to increase speed, \'z\' to decrease speed\n";
+            cout << " * press \'esc\' to exit\n";
             cout << "============================================================\n";
             cout << "mm per press = " << dPerPress << endl;
             cout << "speed        = " << speed << endl;
