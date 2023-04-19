@@ -27,6 +27,9 @@
 #define ACCELFEED_INDEX		1
 #define ACCELRAPID_INDEX	2
 
+#include "CNC_interface.h"
+extern CNC_t CNC;
+
 void G_Code_voidCopyMsg(G_Code_Msg_t** copyPtrPtr, G_Code_Msg_t* originalPtr)
 {
 	/*	allocate the place in RAM which copy is to be into	*/
@@ -63,10 +66,19 @@ u8 G_Code_u8FindNumberEnding(char* line, u8 start)
 void G_Code_voidCopyPoint(s32 point[], G_Code_Msg_t* msgPtr)
 {
 	u8 count = msgPtr->paramCount;
+	u8 isCpied[3] = {0};
+
 	while(count--)
 	{
 		u8 pointIndex = msgPtr->paramChArr[count] - 'X';
 		point[pointIndex] = msgPtr->paramNumArr[count] * (f32)STEPS_PER_MM;
+		isCpied[pointIndex] = 1;
+	}
+
+	for (u8 i = 0; i < 3; i++)
+	{
+		if (isCpied[i] == 0)
+			point[i] = CNC.stepperArr[i].currentPos;
 	}
 }
 
@@ -94,6 +106,18 @@ void G_CODE_voidCopyAcceleration(u32 mainParametersArr[], G_Code_Msg_t* msgPtr)
 		{
 			mainParametersArr[ACCELRAPID_INDEX] =
 				msgPtr->paramNumArr[count] * STEPS_PER_MM;
+		}
+	}
+}
+
+void G_Code_voidUpdateFeedRate(u32* feedratePtrt, G_Code_Msg_t* msgPtr)
+{
+	u8 count = msgPtr->paramCount;
+	while(count--)
+	{
+		if (msgPtr->paramChArr[count] == 'F')
+		{
+			*feedratePtrt = msgPtr->paramNumArr[count] * STEPS_PER_MM;
 		}
 	}
 }

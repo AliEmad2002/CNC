@@ -26,10 +26,6 @@
 #include "STK_interface.h"
 #include "FPEC_interface.h"
 
-/*	HAL	*/
-#include "Stepper_interface.h"
-#include "DC_Motor_Interface.h"
-
 /*	SELF	*/
 #include "CNC_private.h"
 #include "CNC_config.h"
@@ -97,8 +93,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 
 		case G_CODE_feedMovement:
 			G_Code_voidCopyPoint(CNC->point, msgPtr);
-			CNC->feedrate =
-					msgPtr->paramNumArr[msgPtr->paramCount-1] * STEPS_PER_MM;
+			G_Code_voidUpdateFeedRate(&(CNC->feedrate), msgPtr);
 			CNC_voidExecuteMovement(CNC, CNC_MOVEMENTTYPE_feed);
 			break;
 

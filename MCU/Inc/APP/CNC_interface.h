@@ -10,6 +10,13 @@
 #ifndef CNC_INTERFACE_H_
 #define CNC_INTERFACE_H_
 
+#include "RCC_interface.h"
+#include "TIM_interface.h"
+#include "GPIO_interface.h"
+
+#include "Stepper_interface.h"
+#include "DC_Motor_Interface.h"
+
 typedef struct
 {
 	/**
