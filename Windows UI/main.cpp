@@ -26,7 +26,8 @@
 
 using namespace std;
 
-void main_run_file(void);
+void main_run_bmp(void);
+void main_run_gcode(void);
 
 // a byte to "cin" input into:
 char in;
@@ -35,7 +36,12 @@ int main()
 {
     while (1)
     {
-        main_run_file();
+        cout << "imgae (i), G-code (else): ";
+        cin >> in;
+        if (in == 'i' || in == 'I')
+            main_run_bmp();
+        else
+            main_run_gcode();
 
         // make new operation?
         cout << "make new operation? (y): ";
@@ -49,7 +55,7 @@ int main()
     return 0;
 }
 
-void main_run_file(void)
+void main_run_bmp(void)
 {
     // clear console:
     system("cls");
@@ -139,7 +145,7 @@ void main_run_file(void)
                 if (in == 'y' || in == 'Y')
                     break;
             }
-            CNC_auto_leveling(gLineArr, gLineCount, &serial);
+            CNC_auto_leveling(&serial);
         }
     }
 
@@ -186,7 +192,100 @@ void main_run_file(void)
     cout << "operation successful." << endl;
 }
 
+void main_run_gcode(void)
+{
+    // clear console:
+    system("cls");
 
+    // take input directory:
+    take_input_dir();
+
+    // initialize all parameters:
+    init_config();
+
+    // connect to serial:
+    serialib serial;
+    connect_serial(&serial, SERIAL_PORT.c_str(), BAUD_RATE);
+    cout << "connected to serial\n";
+
+    // send parameters to microcontroller:
+    send_parameters_to_microcontroller(&serial);
+
+    // clear console:
+    system("cls");
+
+    // make manual movement (if wanted):
+    cout << "make manual movement? (y): ";
+    cin >> in;
+    if (in == 'y' || in == 'Y')
+        manual_move(&serial);
+
+    // clear console:
+    system("cls");
+
+    // change RAM values of current position:
+    cout << "change RAM values of current position? (y): ";
+    cin >> in;
+    if (in == 'y' || in == 'Y')
+        change_RAM_pos(&serial);
+
+    // clear console:
+    system("cls");
+
+    // copy G-code:
+    create_folder("output");
+    cpy_input_to_gcode_output();
+
+    // auto leveling:
+    if (AUTO_LEVELING)
+    {
+        // it could be done in previous operation, so ask user if they want to do it again:
+        cout << "scan depth map? (y): ";
+        cin >> in;
+        if (in == 'y' || in == 'Y')
+        {
+            cout << "prepare your machine for auto leveling and enter \'y\': ";
+            while (1)
+            {
+                cin >> in;
+                if (in == 'y' || in == 'Y')
+                    break;
+            }
+            CNC_auto_leveling(&serial);
+        }
+    }
+
+    // clear console:
+    system("cls");
+
+    // tool changing:
+    cout << "change tool? (y): ";
+    cin >> in;
+    if (in == 'y' || in == 'Y')
+    {
+        change_tool(&serial);
+    }
+
+    // clear console:
+    system("cls");
+
+    // send G-code:
+    cout << "prepare your machine to start milling and enter \'y\': ";
+    while (1)
+    {
+        cin >> in;
+        if (in == 'y' || in == 'Y')
+            break;
+    }
+
+    // clear console:
+    system("cls");
+
+    CNC_send_G_code(&serial);
+
+    // tell I'm done!:
+    cout << "operation successful." << endl;
+}
 
 
 

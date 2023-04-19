@@ -2,7 +2,7 @@
 
 using namespace std;
 
-void CNC_auto_leveling(gLine* gLineArr, int& gLineCount, serialib* sPtr);
+void CNC_auto_leveling(serialib* sPtr);
 
 void CNC_change_tool(serialib* sPtr);
 

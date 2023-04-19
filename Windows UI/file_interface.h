@@ -14,6 +14,7 @@ using namespace std;
 void create_folder(const char* folderDirStr);							//
 void create_temp_folder();												//
 void make_temp_input_bmp_copy();										//
+void cpy_input_to_gcode_output();
 void delete_temp_folder();
 void bmp_to_svg(const char* bmpFileDir, const char* svgFileDir);		//
 string* get_SVG_data(const char* svgFileDir);							//

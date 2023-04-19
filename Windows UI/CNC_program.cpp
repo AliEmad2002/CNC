@@ -21,7 +21,7 @@ static float CNC_x = 0.0f;
 static float CNC_y = 0.0f;
 static float CNC_z = 0.0f;
 
-void CNC_auto_leveling(gLine* gLineArr, int& gLineCount, serialib* sPtr)
+void CNC_auto_leveling(serialib* sPtr)
 {
     // send G29 command:
     string cmd = "G29 L";

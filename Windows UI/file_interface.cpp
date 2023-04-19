@@ -62,6 +62,18 @@ void make_temp_input_bmp_copy()
     delete[] tempInputDir;
 }
 
+void cpy_input_to_gcode_output()
+{
+    WCHAR* inputDir = c_str_to_LPCTSTR(INPUT_BMP_FILE_DIR);
+
+    WCHAR* outputDir = c_str_to_LPCTSTR(G_CODE_OUTPUT_FILE_DIR);
+
+    CopyFile(inputDir, outputDir, FALSE);
+
+    delete[] inputDir;
+    delete[] outputDir;
+}
+
 void delete_temp_folder()
 {
     WCHAR* dir = c_str_to_LPCTSTR("temp");
@@ -356,7 +368,7 @@ string get_drag_directory()
 
 void take_input_dir(void)
 {
-    cout << "Drop input bmp file here:" << endl;
+    cout << "Drop input file here:" << endl;
     string dd = get_drag_directory();
     int firstDoubleQoutationsIndex = (int)dd.find('\"');
     if (firstDoubleQoutationsIndex < 0 || firstDoubleQoutationsIndex >= (int)dd.size())
