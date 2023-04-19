@@ -117,7 +117,7 @@ void G_Code_voidUpdateFeedRate(u32* feedratePtrt, G_Code_Msg_t* msgPtr)
 	{
 		if (msgPtr->paramChArr[count] == 'F')
 		{
-			*feedratePtrt = msgPtr->paramNumArr[count] * STEPS_PER_MM;
+			*feedratePtrt = (msgPtr->paramNumArr[count] * STEPS_PER_MM) / 60;
 		}
 	}
 }
