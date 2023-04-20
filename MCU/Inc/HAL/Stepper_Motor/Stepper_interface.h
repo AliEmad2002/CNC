@@ -16,11 +16,11 @@
 typedef struct
 {
 	/*	pins	*/
-	u8 stepPin;
-	GPIO_PortName_t stepPort;
-	
-	u8 dirPin;
-	GPIO_PortName_t dirPort;
+	u8 stepPort : 4;
+	u8 stepPin  : 4;
+
+	u8 dirPort  : 4;
+	u8 dirPin   : 4;
 	
 	/*	last time the object stepped	*/
 	u64 lastTimeStamp;
@@ -35,12 +35,10 @@ typedef enum{
 }Stepper_Direction_t;
 
 /*
- * assigns stepper related pins, and initializes them as very high speed
- * outputs.
+ * initializes pins as very high speed outputs.
  * zeros its time-stamp and position.
  */
-void Stepper_voidInit(
-	Stepper_t* stepperPtr, GPIO_Pin_t _stepPin, GPIO_Pin_t _dirPin);
+void Stepper_voidInit(Stepper_t* stepperPtr);
 
 /*
  * steps the object in wanted direction by one steep, and stamps current time.

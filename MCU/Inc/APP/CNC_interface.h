@@ -16,68 +16,58 @@
 
 #include "Stepper_interface.h"
 #include "DC_Motor_Interface.h"
+#include "Probe.h"
+
+#include "LevelMap.h"
 
 typedef struct
 {
 	/**
-	 * these following variables, are where data is stored after buffering
-	 * and before execution. they all use "second" as time dimension's unit,
-	 * "step" as length's dimension's unit. the pointers are to be allocated
-	 * per need in the execution functions.
+	 * all of the following parameters use "second" as time dimension's unit,
+	 * "step" as length's dimension's unit.
 	 **/
+	u32 feedrateMax;
+	u32 rapidSpeedMax;
 
-	/*
-	 * point will be of 3 items in the movement mode, but when auto leveling is
-	 * required, 6 items are stored. (these 6 items are mentioned in the auto
-	 * leveling function)
-	 */
+	u32 feedAccel;
+	u32 rapidAccel;
+
+	u8 relativePosEnabled : 1;
+	u8 autoLevelingEnabled : 1;
+	u8 unitSys : 1;	// 0: metric, 1: imperial.
+
+	/** notice that 'LengthUnit' could be either mm or inch	**/
+	u32 stepsPerLengthUnit[3];
+}CNC_Config_t;
+
+typedef struct
+{
+	/**
+	 * all of the following parameters use "second" as time dimension's unit,
+	 * "step" as length's dimension's unit.
+	 **/
+	Stepper_t stepperArr[3];
+	DC_Motor_t spindle;
+
+	CNC_Config_t config;
+
 	s32 point[6];
+
 	u32 feedrate;
 	u32 speedCurrent;
-	u32 mainParametersArr[4];
-	Stepper_t* stepperArr;
-	DC_Motor_t* spindle;
 	
-	/*	auto leveling parameters	*/
-	b8 autoLevelingEnable;
-
-	u8 autoLevelingProbePin;
-	GPIO_PortName_t autoLevelingProbePort;
-
-	u8 autoLevelingGridxN;
-	u8 autoLevelingGridyN;
+	LevelMap_t map;
 	
-	s32 autoLevelingStartX;
-	s32 autoLevelingEndX;
-	s32 autoLevelingDx;
-
-	s32 autoLevelingStartY;
-	s32 autoLevelingEndY;
-	s32 autoLevelingDy;
-
-	s32 autoLevelingDs;	// (smaller of dx, dy)
-	s32 autoLevelingMap[20][20];
-
+	Probe_t probe;
 }CNC_t;
 
 typedef enum{
-	CNC_maxFeedrate				=	0,
-	CNC_accelerationFeed		=	1,
-	CNC_accelerationRapid		=	2,
-	CNC_relativePositioning		=	3
-}CNC_MAINPARAMETERS_INDEXES;
+	CNC_MovementType_rapid,
+	CNC_MovementType_feed
+}CNC_MovementType_t;
 
-typedef enum{
-	CNC_MOVEMENTTYPE_rapid,
-	CNC_MOVEMENTTYPE_feed
-}CNC_MOVEMENTTYPE_t;
 
-/*
- * initializes params of the CNC machine
- */
-void CNC_voidInit(
-	CNC_t* CNC, GPIO_Pin_t _autoLevelingProbePin,
-	Stepper_t* stepperArr, DC_Motor_t* spindle);
+void CNC_voidInit(CNC_t* CNC);
 
 /*
  * allows the user to change the current position of the tool in memory,
@@ -93,7 +83,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr);
 /*
  *	called by "CNC_voidExecute()" when movement is commanded.
  */
-void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MOVEMENTTYPE_t movementType);
+void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType);
 
 /*
  * probes a grid on the working area, rules of that grid must be initially

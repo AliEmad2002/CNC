@@ -11,6 +11,8 @@
 /*	Probe pin	*/
 #define AUTO_LEVELING_PROBE_PIN				GPIO_Pin_A8
 
+#define AUTO_LEVELING_PROBE_OC_LEVEL		1
+
 /*
  * Safety parameter to avoid miss contact machine self-destruction. (in steps)
  */
@@ -33,6 +35,7 @@
 /*	probing speed inverse	*/
 #define AL_SLOW_SPEED_TICKS_PER_STEP		1600*25
 
+#define AUTO_LEVELING_FLASH_BASE_PAGE		55
 
 
 #endif /* INCLUDE_APP_CONFIG_CNC_AUTOLEVELING_CONFIG_H_ */

@@ -27,11 +27,8 @@
 /*	How frequently will speed be changed, in steps	*/
 #define SPEED_CHANGE_DELTA		 			64
 
-/*	steps per mm	*/
+/*	steps per mm (initial, and could be changed by g-code later)	*/
 #define STEPS_PER_MM						800
-
-/*	ratio between maximum rapid speed to maximum feed speed	*/
-#define RAPID_SPEED_MAX_TO_FEED_SPEED_MAX	10
 
 /*	minimum operating speed	*/
 #define SPEED_MIN							STEPS_PER_MM

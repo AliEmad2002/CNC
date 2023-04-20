@@ -33,29 +33,55 @@
 
 static u64 ticksPerSecond;
 
-/*
- * initializes params of the CNC machine
- */
-void CNC_voidInit(
-	CNC_t* CNC, GPIO_Pin_t _autoLevelingProbePin,
-	Stepper_t* stepperArr, DC_Motor_t* spindle)
+void CNC_voidInit(CNC_t* CNC)
 {
-	/*	store and init auto leveling probe pin as pulled up input	*/
-	CNC->autoLevelingProbePin = _autoLevelingProbePin % 16;
-	CNC->autoLevelingProbePort = _autoLevelingProbePin / 16;
-	GPIO_voidSetPinInputPullUp(
-			CNC->autoLevelingProbePort, CNC->autoLevelingProbePin);
+	/*	probe	*/
+	CNC->probe.port = AUTO_LEVELING_PROBE_PIN / 16;
+	CNC->probe.pin  = AUTO_LEVELING_PROBE_PIN % 16;
+	CNC->probe.openCirciutLevel = AUTO_LEVELING_PROBE_OC_LEVEL;
+	Probe_voidInit(&(CNC->probe));
 	
-	/*	store motors' objects	*/
-	CNC->stepperArr = stepperArr;
-	CNC->spindle = spindle;
+	/*	steppers	*/
+	CNC->stepperArr[0].stepPort = X_STEP_PIN / 16;
+	CNC->stepperArr[0].stepPin  = X_STEP_PIN % 16;
+	CNC->stepperArr[0].dirPort  = X_DIR_PIN  / 16;
+	CNC->stepperArr[0].dirPin   = X_DIR_PIN  % 16;
+	Stepper_voidInit(&(CNC->stepperArr[0]));
+
+	CNC->stepperArr[1].stepPort = Y_STEP_PIN / 16;
+	CNC->stepperArr[1].stepPin  = Y_STEP_PIN % 16;
+	CNC->stepperArr[1].dirPort  = Y_DIR_PIN  / 16;
+	CNC->stepperArr[1].dirPin   = Y_DIR_PIN  % 16;
+	Stepper_voidInit(&(CNC->stepperArr[1]));
+
+	CNC->stepperArr[2].stepPort = Z_STEP_PIN / 16;
+	CNC->stepperArr[2].stepPin  = Z_STEP_PIN % 16;
+	CNC->stepperArr[2].dirPort  = Z_DIR_PIN  / 16;
+	CNC->stepperArr[2].dirPin   = Z_DIR_PIN  % 16;
+	Stepper_voidInit(&(CNC->stepperArr[2]));
+
+	/*	spindle	*/
+	DC_Motor_voidInit(
+		&(CNC->spindle), SPINDLE_PWM_TIM_UNIT_NUMBER,
+		SPINDLE_PWM_TIM_CHANNEL, SPINDLE_PWM_AFIO_MAP);
 		
 	/*
 	 * relative positioning and auto leveling are initially turned off, to
 	 * activate them, user may command their respective commands.
 	 */
-	CNC->mainParametersArr[CNC_relativePositioning] = 0;
-	CNC->autoLevelingEnable = 0;
+	CNC->config.relativePosEnabled = 0;
+	CNC->config.autoLevelingEnabled = 0;
+
+	/*	unit system is initially metric	*/
+	CNC->config.unitSys = 0;
+
+	/*	initial steps per mm	*/
+	CNC->config.stepsPerLengthUnit[0] = STEPS_PER_MM;
+	CNC->config.stepsPerLengthUnit[1] = STEPS_PER_MM;
+	CNC->config.stepsPerLengthUnit[2] = STEPS_PER_MM;
+
+	/*	map	*/
+	CNC->map.flashSavingBasePage = AUTO_LEVELING_FLASH_BASE_PAGE;
 
 	/*	obviously, machine've just started	*/
 	CNC->speedCurrent = 0;
@@ -162,7 +188,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 /*
  *	called by "CNC_voidExecute()" when movement is commanded.
  */
-void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MOVEMENTTYPE_t movementType)
+void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
 {
 	/*	prepare moving parameters	*/
 	if (CNC->mainParametersArr[CNC_relativePositioning] == 0)
@@ -332,12 +358,8 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	 **/
 	/*	safety tool up	*/
 	CNC_voidMove3Axis(
-		CNC,
-		0, 0, AUTO_LEVELING_UP,
-		0, 0,
-		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
-		CNC->mainParametersArr[CNC_maxFeedrate],
-		CNC->mainParametersArr[CNC_accelerationRapid]);
+		CNC, 0, 0, AUTO_LEVELING_UP, 0, 0,
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 	/*	(x, y) = (0, 0)	*/
 	CNC_voidMove3Axis(
@@ -345,9 +367,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		0 - CNC->stepperArr[X].currentPos,
 		0 - CNC->stepperArr[Y].currentPos,
 		0, 0, 0,
-		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
-		CNC->mainParametersArr[CNC_maxFeedrate],
-		CNC->mainParametersArr[CNC_accelerationRapid]);
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 	/*	probe	*/
 	CNC_voidProbe(CNC);
@@ -356,65 +376,26 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	CNC->stepperArr[Z].currentPos = 0;
 
 	/**	store and init params	**/
-	CNC->autoLevelingEnable = true;
+	CNC->config.autoLevelingEnabled = 1;
 
 	/*	N = V + 3	(G-Code convention)	*/
-	CNC->autoLevelingGridxN = (u8)CNC->point[4] + 3;
-	CNC->autoLevelingGridyN = (u8)CNC->point[5] + 3;
+	CNC->map.nX = (u8)CNC->point[4] + 3;
+	CNC->map.nY = (u8)CNC->point[5] + 3;
 
-	CNC->autoLevelingStartX = CNC->point[0];
-	CNC->autoLevelingStartY = CNC->point[2];
+	CNC->map.sX = CNC->point[0];
+	CNC->map.sY = CNC->point[2];
 
-	CNC->autoLevelingEndX = CNC->point[1];
-	CNC->autoLevelingEndY = CNC->point[3];
+	CNC->map.eX = CNC->point[1];
+	CNC->map.eY = CNC->point[3];
 	
-	CNC->autoLevelingDy =
-		(CNC->autoLevelingEndY - CNC->autoLevelingStartY) /
-		(s32)(CNC->autoLevelingGridyN - 1);
-
-	CNC->autoLevelingDx =
-		(CNC->autoLevelingEndX - CNC->autoLevelingStartX) /
-		(s32)(CNC->autoLevelingGridxN - 1);
-
-	CNC->autoLevelingDs =
-		(CNC->autoLevelingDx < CNC->autoLevelingEndY) ?
-			CNC->autoLevelingDx : CNC->autoLevelingDy;
-
-	/**	store in flash	**/
-	/*	first: unlock, erase pages form 55 to 63, select programming mode	*/
-	if (FPEC_b8IsLocked())
-		FPEC_voidUnlock();
-	FPEC_voidEnablePageEraseMode();
-	for (u8 i = 55; i < 64; i++)
-		FPEC_voidErasePage(i);
-	FPEC_voidDisablePageEraseMode();
-	FPEC_voidEnableProgrammingMode();
-
-	/*	store N	*/
-	FPEC_voidProgramHalfWord(
-		FPEC_HALF_WORD_ADDRESS(55, 0), CNC->autoLevelingGridxN);
-	FPEC_voidProgramHalfWord(
-		FPEC_HALF_WORD_ADDRESS(55, 1), CNC->autoLevelingGridyN);
-
-	/*	store boundaries	*/
-	FPEC_voidProgramWord(
-		FPEC_HALF_WORD_ADDRESS(55, 2), CNC->autoLevelingStartX);
-	FPEC_voidProgramWord(
-		FPEC_HALF_WORD_ADDRESS(55, 4), CNC->autoLevelingStartY);
-
-	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(55, 6), CNC->autoLevelingEndX);
-	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(55, 8), CNC->autoLevelingEndY);
+	LevelMap_voidInit(&(CNC->map));
 
 	/**	start probing/sampling	**/
 	u8 i = 0;
 	u8 j = 0;
 
 	/*	y-axis loop	*/
-	for (
-		s32 y=CNC->autoLevelingStartY;
-			y<=CNC->autoLevelingEndY;
-			y+=CNC->autoLevelingDy
-		)
+	for (s32 y = CNC->map.sY; y <= CNC->map.eY; y += CNC->map.dY)
 	{
 		s32 x;
 		s32 dx;
@@ -422,17 +403,17 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		/*	at odd lines, take samples from the end back to beginning	*/
 		if (i % 2)
 		{
-			 x = CNC->autoLevelingEndX;
-			 dx = -CNC->autoLevelingDx;
+			 x = CNC->map.eX;
+			 dx = -CNC->map.dX;
 			 jFinal = 0;
-			 j = CNC->autoLevelingGridxN - 1;
+			 j = CNC->map.nX - 1;
 		}
 		/*	while even lines are normally sampled from 0 to N - 1	*/
 		else
 		{
-			x = CNC->autoLevelingStartX;
-			dx = CNC->autoLevelingDx;
-			jFinal = CNC->autoLevelingGridxN - 1;
+			x = CNC->map.sX;
+			dx = CNC->map.dX;
+			jFinal = CNC->map.nX - 1;
 			j = 0;
 		}
 
@@ -447,32 +428,22 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 			/*	go to that point of (x, y)	*/
 			// tool up:
 			CNC_voidMove3Axis(
-				CNC,
-				0, 0, AUTO_LEVELING_UP,
-				0, 0,
-				RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
-				CNC->mainParametersArr[CNC_maxFeedrate],
-				CNC->mainParametersArr[CNC_accelerationRapid]);
+				CNC, 0, 0, AUTO_LEVELING_UP, 0, 0,
+				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
 			// move to (x, y):
 			CNC_voidMove3Axis(
 				CNC,
 				x - CNC->stepperArr[X].currentPos,
 				y - CNC->stepperArr[Y].currentPos,
 				0, 0, 0,
-				RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
-				CNC->mainParametersArr[CNC_maxFeedrate],
-				CNC->mainParametersArr[CNC_accelerationRapid]);
+				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 			/*	probe	*/
 			CNC_voidProbe(CNC);
 
-			/*	save current z position to ROM	*/
-			u32 romAddress =
-				FPEC_WORD_ADDRESS(56, i * CNC->autoLevelingGridyN + j);
-			FPEC_voidProgramWord(romAddress, CNC->stepperArr[Z].currentPos);
-
 			/*	save current z position to RAM	*/
-			CNC->autoLevelingMap[i][j] = CNC->stepperArr[Z].currentPos;
+			LevelMap_voidSetDepthAt(&(CNC->map), i, j, CNC->stepperArr[Z].currentPos);
 
 			/*	iteration end checks	*/
 			if (j == jFinal)
@@ -492,119 +463,33 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		CNC,
 		0, 0, AUTO_LEVELING_UP - CNC->stepperArr[Z].currentPos,
 		0, 0,
-		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
-		CNC->mainParametersArr[CNC_maxFeedrate],
-		CNC->mainParametersArr[CNC_accelerationRapid]
-		);
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 	/*	go to (x, y) = (0, 0)	*/
 	CNC_voidMove3Axis(
 		CNC,
-		-CNC->stepperArr[X].currentPos, -CNC->stepperArr[Y].currentPos,
+		0 					 - CNC->stepperArr[X].currentPos,
+		0 					 - CNC->stepperArr[Y].currentPos,
 		AUTO_LEVELING_UP_MAX - CNC->stepperArr[Z].currentPos,
 		0, 0,
-		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
-		CNC->mainParametersArr[CNC_maxFeedrate],
-		CNC->mainParametersArr[CNC_accelerationRapid]
-		);
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 	/*	tool down	*/
 	CNC_voidMove3Axis(
-		CNC,
-		0, 0, -CNC->stepperArr[Z].currentPos,
-		0, 0,
-		RAPID_SPEED_MAX_TO_FEED_SPEED_MAX *
-		CNC->mainParametersArr[CNC_maxFeedrate],
-		CNC->mainParametersArr[CNC_accelerationRapid]
-		);
+		CNC, 0, 0, -CNC->stepperArr[Z].currentPos, 0, 0,
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
+	/**	store in flash	**/
+	LevelMap_voidStoreToFlash(&(CNC->map));
 }
 
-/*
- * restores previously sampled working area. (useful at restoring system after
- * unexpected power reset, as it saves probing time)
- */
 void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)
 {
 	/*	enable auto leveling	*/
-	CNC->autoLevelingEnable = 1;
+	CNC->config.autoLevelingEnabled = 1;
 
 	/*	read flash	*/
-	/*	N's	*/
-	CNC->autoLevelingGridxN =
-		FPEC_u16ReadHalfWord(FPEC_HALF_WORD_ADDRESS(55, 0));
-	CNC->autoLevelingGridyN =
-		FPEC_u16ReadHalfWord(FPEC_HALF_WORD_ADDRESS(55, 1));
-
-	/*	boundaries	*/
-	CNC->autoLevelingStartX =
-		FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(55, 2));
-	CNC->autoLevelingStartY =
-			FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(55, 4));
-	CNC->autoLevelingEndX = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(55, 6));
-	CNC->autoLevelingEndY = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(55, 8));
-
-	/*	samples	*/
-	for(u8 i = 0; i < CNC->autoLevelingGridyN; i++)
-	{
-		for(u8 j = 0; j < CNC->autoLevelingGridxN; j++)
-		{
-			u32 romAddress =
-				FPEC_WORD_ADDRESS(56, i * CNC->autoLevelingGridyN + j);
-			CNC->autoLevelingMap[i][j] = FPEC_u32ReadWord(romAddress);
-		}
-	}
-
-	/*	init d's	*/
-	CNC->autoLevelingDy =
-		(CNC->autoLevelingEndY - CNC->autoLevelingStartY) /
-		(s32)(CNC->autoLevelingGridyN - 1);
-
-	CNC->autoLevelingDx =
-		(CNC->autoLevelingEndX - CNC->autoLevelingStartX) /
-		(s32)(CNC->autoLevelingGridxN - 1);
-	CNC->autoLevelingDs =
-		(CNC->autoLevelingDx < CNC->autoLevelingEndY) ?
-			CNC->autoLevelingDx : CNC->autoLevelingDy;
-}
-
-/*
- * applies bilinear interpolation on the depths of the four bounding points of
- * the point (x, y), to estimate its own depth
- */
-s32 CNC_s32Depth(CNC_t* CNC, s32 x, s32 y)
-{
-	/*	Check that x and y are in the scanned grid	*/
-	if (
-		CNC->autoLevelingStartY > y	||	y > CNC->autoLevelingEndY	||
-		CNC->autoLevelingStartX > x	||	x > CNC->autoLevelingEndX
-		)
-	{
-		/*	wrong x and/or y	*/
-		CNC_ERR_HANDLER(WRONG_INTERPOLATION_POINT_ERR_CODE);
-	}
-	
-	/*	finding iP, jP	*/
-	u8 iP = (u8)((y - CNC->autoLevelingStartY) / CNC->autoLevelingDy);
-	u8 jP = (u8)((x - CNC->autoLevelingStartX) / CNC->autoLevelingDx);
-	
-	/*	finding four surrounding points	*/
-	s64 xL = CNC->autoLevelingStartX + ((s32)jP) * CNC->autoLevelingDx;
-	s64 yT = CNC->autoLevelingStartY + ((s32)iP) * CNC->autoLevelingDy;
-	
-	s64 dTL = CNC->autoLevelingMap[iP][jP];
-	s64 dTR = CNC->autoLevelingMap[iP][jP+1];
-	s64 dBL = CNC->autoLevelingMap[iP+1][jP];
-	s64 dBR = CNC->autoLevelingMap[iP+1][jP+1];
-	
-	/*	Bilinear interpolation	*/
-	s64 d =
-		dTL * (xL + CNC->autoLevelingDx - x) * (yT + CNC->autoLevelingDy - y) +
-		dBL * (x - xL) * (yT + CNC->autoLevelingDy - y) +
-		dTR * (xL + CNC->autoLevelingDx - x) * (y - yT) +
-		dBR * (x - xL) * (y - yT);
-	d /= (((s64)(CNC->autoLevelingDx)) * ((s64)(CNC->autoLevelingDy)));
-
-	return (s32)d;
+	LevelMap_voidRestoreFromFlash(&(CNC->map));
 }
 
 /*
@@ -1260,12 +1145,10 @@ void CNC_voidProbe(CNC_t* CNC)
 	u32 steps = 0;
 
 	/*	current state of the probe pin	*/
-	GPIO_OutputLevel_t probePinCurrentState =
-		GPIO_DIGITAL_READ(
-			CNC->autoLevelingProbePort, CNC->autoLevelingProbePin);
+	u8 probePinCurrentState = Probe_u8GetStatus(&(CNC->probe));
 
-	/*	as long as the probe pin state is still high	*/
-	while(probePinCurrentState == GPIO_OutputLevel_High)
+	/*	as long as the probe circuit is still open	*/
+	while(probePinCurrentState == Probe_State_OpenCircuit)
 	{
 		/*	time passed since previous step in Z-axis	*/
 		u64 timeSincePrevStep = timeCurrent - CNC->stepperArr[2].lastTimeStamp;
@@ -1294,9 +1177,7 @@ void CNC_voidProbe(CNC_t* CNC)
 		}
 		
 		/*	update probe pin current state	*/
-		probePinCurrentState =
-				GPIO_DIGITAL_READ(
-					CNC->autoLevelingProbePort, CNC->autoLevelingProbePin);
+		probePinCurrentState = Probe_u8GetStatus(&(CNC->probe));
 
 		/*	update current timestamp	*/
 		timeCurrent = STK_u64GetElapsedTicks();

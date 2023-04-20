@@ -48,7 +48,7 @@ void FPEC_voidDisableProgrammingMode(void);
 
 void FPEC_voidSelectFlashAccessLatency(FPEC_Latency_t latency);
 
-#define FPEC_PAGE_ADDRESS(page)				(0x08000000 + 1024 * (page))
+#define FPEC_PAGE_ADDRESS(page)				(0x08000000 + 1024 * (u32)(page))
 
 #define FPEC_HALF_WORD_ADDRESS(page, i)		(FPEC_PAGE_ADDRESS(page) + 2 * (i))
 

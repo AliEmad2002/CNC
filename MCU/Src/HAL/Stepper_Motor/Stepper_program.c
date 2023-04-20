@@ -28,16 +28,8 @@
  * outputs.
  * zeros its time-stamp and position.
  */
-void Stepper_voidInit(
-	Stepper_t* stepperPtr, GPIO_Pin_t _stepPin, GPIO_Pin_t _dirPin)
+void Stepper_voidInit(Stepper_t* stepperPtr)
 {
-	/*	init pins	*/
-	stepperPtr->stepPin = _stepPin % 16;
-	stepperPtr->stepPort = _stepPin / 16;
-	
-	stepperPtr->dirPin = _dirPin % 16;
-	stepperPtr->dirPort = _dirPin / 16;
-	
 	GPIO_voidSetPinGpoPushPull(stepperPtr->stepPort, stepperPtr->stepPin);
 	GPIO_voidSetPinGpoPushPull(stepperPtr->dirPort, stepperPtr->dirPin);
 
