@@ -8,7 +8,6 @@
 /*	LIB	*/
 #include "Std_Types.h"
 #include "Bit_Math.h"
-#include "cmsis_gcc.h"
 
 /*	MCAL	*/
 #include "FPEC_interface.h"
@@ -39,7 +38,7 @@ s32 LevelMap_s32GetDepthAt(LevelMap_t* map, s32 x, s32 y)
 		/*	wrong x and/or y	*/
 		trace_printf("LevelMap_s32GetDepthAt(): \"wrong x and/or y in)\"");
 		u8 contAfterErr = 0;
-		__BKPT(0);
+		__asm volatile ("bkpt 0");
 		while(!contAfterErr);
 	}
 
@@ -52,9 +51,9 @@ s32 LevelMap_s32GetDepthAt(LevelMap_t* map, s32 x, s32 y)
 	s64 yT = map->sY + ((s32)iP) * map->dY;
 
 	s64 dTL = map->mapArr[iP * map->nX + jP];				//	[iP][jP]
-	s64 dTR = CNC->autoLevelingMap[iP * map->nX + jP+1];	//	[iP][jP+1]
-	s64 dBL = CNC->autoLevelingMap[(iP+1) * map->nX + jP];	//	[iP+1][jP]
-	s64 dBR = CNC->autoLevelingMap[(iP+1) * map->nX + jP+1];//	[iP+1][jP+1]
+	s64 dTR = map->mapArr[iP * map->nX + jP+1];				//	[iP][jP+1]
+	s64 dBL = map->mapArr[(iP+1) * map->nX + jP];			//	[iP+1][jP]
+	s64 dBR = map->mapArr[(iP+1) * map->nX + jP+1];			//	[iP+1][jP+1]
 
 	/*	Bilinear interpolation	*/
 	s64 d =
@@ -118,7 +117,7 @@ void LevelMap_voidRestoreFromFlash(LevelMap_t* map)
 	{
 		for(u8 j = 0; j < map->nX; j++)
 		{
-			u32 flashAddress = FPEC_WORD_ADDRESS(base + 1, i * CNC->autoLevelingGridyN + j);
+			u32 flashAddress = FPEC_WORD_ADDRESS(base + 1, i * map->nY + j);
 			map->mapArr[i * map->nX + j] = FPEC_u32ReadWord(flashAddress);
 		}
 	}

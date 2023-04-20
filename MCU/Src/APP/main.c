@@ -40,9 +40,10 @@
 #include "CNC_config.h"
 #include "CNC_interface.h"
 #include "CNC_Init_MCAL.h"
-#include "CNC_Init_HAL.h"
 
+void steppers_test(void);
 
+static s32 mapArr[400];
 CNC_t CNC;
 Queue_t queue;
 
@@ -60,31 +61,12 @@ int main(void)
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
 
-	/*	power stabilization delay	*/
+	/*	power stabilization and MCAL ready delay	*/
 	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
 
-	/*	init HAL	*/
-	CNC_voidInitHAL();
-
-//	volatile u8 x = 0;
-//	volatile u8 y = 0;
-//	volatile u8 z = 0;
-//	volatile u8 dirX = 0;
-//	volatile u8 dirY = 0;
-//	volatile u8 dirZ = 0;
-//	volatile u32 delay = 1;
-//	while (1)
-//	{
-//		if (x)
-//			Stepper_voidStep(CNC.stepperArr, dirX, STK_u64GetElapsedTicks());
-//		if (y)
-//			Stepper_voidStep(CNC.stepperArr+1, dirY, STK_u64GetElapsedTicks());
-//		if (z)
-//			Stepper_voidStep(CNC.stepperArr+2, dirZ, STK_u64GetElapsedTicks());
-//		Delay_voidBlockingDelayMs(delay);
-//	}
-
-	//CNC_voidProbe(&CNC);
+	/*	init CNC object	*/
+	CNC.map.mapArr = mapArr;
+	CNC_voidInit(&CNC);
 
 	/*	Super-Loop	*/
 	while(1)
@@ -108,7 +90,26 @@ int main(void)
 	}
 }
 
-
+void steppers_test(void)
+{
+	volatile u8 x = 0;
+	volatile u8 y = 0;
+	volatile u8 z = 0;
+	volatile u8 dirX = 0;
+	volatile u8 dirY = 0;
+	volatile u8 dirZ = 0;
+	volatile u32 delay = 1;
+	while (1)
+	{
+		if (x)
+			Stepper_voidStep(CNC.stepperArr, dirX, STK_u64GetElapsedTicks());
+		if (y)
+			Stepper_voidStep(CNC.stepperArr+1, dirY, STK_u64GetElapsedTicks());
+		if (z)
+			Stepper_voidStep(CNC.stepperArr+2, dirZ, STK_u64GetElapsedTicks());
+		Delay_voidBlockingDelayMs(delay);
+	}
+}
 
 
 

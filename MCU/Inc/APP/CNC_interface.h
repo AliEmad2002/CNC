@@ -98,12 +98,6 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC);
 void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC);
 
 /*
- * applies bilinear interpolation on the depths of the four bounding points of
- * the point (x, y), to estimate its own depth
- */
-s32 CNC_s32Depth(CNC_t* CNC, s32 x, s32 y);
-
-/*
  * calculates the speed at a given point.
  * (used in auto leveled movements)
  */

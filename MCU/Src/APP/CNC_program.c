@@ -18,6 +18,7 @@
 #include "G_code_interface.h"
 #include "Delay_interface.h"
 #include "Error_Handler_interface.h"
+#include "diag/trace.h"
 
 /*	MCAL	*/
 #include "RCC_interface.h"
@@ -113,18 +114,18 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 		switch (msgPtr->code)
 		{
 		case G_CODE_rapidMovement:
-			G_Code_voidCopyPoint(CNC->point, msgPtr);
-			CNC_voidExecuteMovement(CNC, CNC_MOVEMENTTYPE_rapid);
+			G_Code_voidCopyPoint(msgPtr);
+			CNC_voidExecuteMovement(CNC, CNC_MovementType_rapid);
 			break;
 
 		case G_CODE_feedMovement:
-			G_Code_voidCopyPoint(CNC->point, msgPtr);
-			G_Code_voidUpdateFeedRate(&(CNC->feedrate), msgPtr);
-			CNC_voidExecuteMovement(CNC, CNC_MOVEMENTTYPE_feed);
+			G_Code_voidCopyPoint(msgPtr);
+			G_Code_voidUpdateFeedRate(msgPtr);
+			CNC_voidExecuteMovement(CNC, CNC_MovementType_feed);
 			break;
 
 		case G_CODE_autoLeveling:
-			G_Code_voidCopyPointAL(CNC->point, msgPtr);
+			G_Code_voidCopyPointAL(msgPtr);
 			CNC_voidExecuteAutoLevelingSampling(CNC);
 			break;
 
@@ -133,7 +134,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			break;
 
 		case G_CODE_softwareSetPosition:
-			G_Code_voidCopyPoint(CNC->point, msgPtr);
+			G_Code_voidCopyPoint(msgPtr);
 			CNC_voidExecuteSoftwareSetPosition(CNC);
 			break;
 
@@ -151,24 +152,28 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 		switch (msgPtr->code)
 		{
 		case G_CODE_setSpindleSpeedCW:
-			DC_Motor_voidSetSpeed(CNC->spindle, msgPtr->paramNumArr[0]);
+			DC_Motor_voidSetSpeed(&(CNC->spindle), msgPtr->paramNumArr[0]);
 			break;
 
 		case G_CODE_setSpindleSpeedCCW:
-			DC_Motor_voidSetSpeed(CNC->spindle, msgPtr->paramNumArr[0]);
+			DC_Motor_voidSetSpeed(&(CNC->spindle), msgPtr->paramNumArr[0]);
 			break;
 
 		case G_CODE_turnSpindleOff:
-			DC_Motor_voidSetSpeed(CNC->spindle, 0);
+			DC_Motor_voidSetSpeed(&(CNC->spindle), 0);
 			break;
 
 		case G_CODE_setMaxFeedrate:
-			CNC->mainParametersArr[CNC_maxFeedrate] =
-				msgPtr->paramNumArr[0] * STEPS_PER_MM;
+			CNC->config.feedrateMax =
+				msgPtr->paramNumArr[0] * (f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
+
+			/*	TODO: make this G-code editable	*/
+			CNC->config.rapidSpeedMax =
+				600.0f * (f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
 			break;
 
 		case G_CODE_setAcceleration:
-			G_CODE_voidCopyAcceleration(CNC->mainParametersArr, msgPtr);
+			G_CODE_voidCopyAcceleration(msgPtr);
 			break;
 
 		case G_CODE_enableAutoLeveling:
@@ -191,7 +196,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
 {
 	/*	prepare moving parameters	*/
-	if (CNC->mainParametersArr[CNC_relativePositioning] == 0)
+	if (CNC->config.relativePosEnabled == 0)
 	{
 		CNC->point[X] -= CNC->stepperArr[X].currentPos;
 		CNC->point[Y] -= CNC->stepperArr[Y].currentPos;
@@ -199,30 +204,31 @@ void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
 	
 	u32 speed1 = CNC->speedCurrent;
 	u32 speed2;
-	u32 speedMax = CNC->mainParametersArr[CNC_maxFeedrate];
+	u32 speedMax;
 	u32 acceleration;
 	
-	if (movementType == CNC_MOVEMENTTYPE_rapid)
+	if (movementType == CNC_MovementType_rapid)
 	{
 		speed2 = 0;
-		speedMax *= RAPID_SPEED_MAX_TO_FEED_SPEED_MAX;
+		speedMax = CNC->config.rapidSpeedMax;
 		CNC->speedCurrent = 0;
-		acceleration = CNC->mainParametersArr[CNC_accelerationRapid];
+		acceleration = CNC->config.rapidAccel;
 	}
 	else	// if (movementType == CNC_MOVEMENTTYPE_feed)
 	{
 		speed2 = CNC->feedrate;
+		speedMax = CNC->config.feedrateMax;
 		if (speed2 > speedMax)
 			speedMax = speed2;
 			
 		CNC->speedCurrent = speed2;
-		acceleration = CNC->mainParametersArr[CNC_accelerationFeed];
+		acceleration = CNC->config.feedAccel;
 	}
 	
 	/*	move	*/
-	if (!CNC->autoLevelingEnable)
+	if (CNC->config.autoLevelingEnabled == 0)
 	{
-		if (CNC->mainParametersArr[CNC_relativePositioning] == 0)
+		if (CNC->config.relativePosEnabled == 0)
 			CNC->point[Z] -= CNC->stepperArr[Z].currentPos;
 		
 		CNC_voidMove3Axis(
@@ -236,11 +242,11 @@ void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
 	/*	if auto leveling is enabled	*/
 	s32 zAbs =
 		CNC->point[Z] +
-		CNC_s32Depth(
-			CNC, CNC->stepperArr[X].currentPos, CNC->stepperArr[Y].currentPos);
+		LevelMap_s32GetDepthAt(&(CNC->map),
+		CNC->stepperArr[X].currentPos, CNC->stepperArr[Y].currentPos);
 	s32 zSteps = zAbs - CNC->stepperArr[Z].currentPos;
 	
-	if (movementType == CNC_MOVEMENTTYPE_rapid)
+	if (movementType == CNC_MovementType_rapid)
 	{
 		/*
 		 * no need to auto level along the movement. (to avoid high speed
@@ -265,10 +271,11 @@ void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
 	
 	s32* largestMovedPtr;
 	
+	/**	TODO: Optimize the following	**/
 	if (labs(CNC->point[X]) > labs(CNC->point[Y]))
 	{
 		dx =
-			CNC->autoLevelingDs * (s32)MATH_s16FindSignOf(CNC->point[X]) /
+			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[X]) /
 			AL_GRID_TRIMMER;
 
 		dy = (s32)((s64)dx * (s64)CNC->point[Y] / (s64)CNC->point[X]);
@@ -286,7 +293,7 @@ void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
 	else
 	{
 		dy =
-			CNC->autoLevelingDs * (s32)MATH_s16FindSignOf(CNC->point[Y]) /
+			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[Y]) /
 			AL_GRID_TRIMMER;
 
 		dx = (s32)((s64)dy * (s64)CNC->point[X] / (s64)CNC->point[Y]);
@@ -314,9 +321,11 @@ void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
 		
 		// make the wanted z-axis material-bit distance:
 		zAbs =
-			CNC->point[Z] + CNC_s32Depth(
-				CNC, CNC->stepperArr[X].currentPos +
-				dx, CNC->stepperArr[Y].currentPos + dy);
+			CNC->point[Z] +
+			LevelMap_s32GetDepthAt(
+				&(CNC->map),
+				CNC->stepperArr[X].currentPos + dx,
+				CNC->stepperArr[Y].currentPos + dy);
 
 		zSteps = zAbs - CNC->stepperArr[Z].currentPos;
 		

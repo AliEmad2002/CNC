@@ -42,13 +42,13 @@ void G_Code_voidFreeMsg(G_Code_Msg_t* msgPtr);
 
 u8 G_Code_u8FindNumberEnding(char* line, u8 start);
 
-void G_Code_voidCopyPoint(s32* point, G_Code_Msg_t* msgPtr);
+void G_Code_voidCopyPoint(G_Code_Msg_t* msgPtr);	// copies x, y & z
 
-void G_Code_voidCopyPointAL(s32* point, G_Code_Msg_t* msgPtr);
+void G_Code_voidCopyPointAL(G_Code_Msg_t* msgPtr);	// copies sX, sY, eX, eY, vX, vY
 
-void G_CODE_voidCopyAcceleration(u32 mainParametersArr[], G_Code_Msg_t* msgPtr);
+void G_CODE_voidCopyAcceleration(G_Code_Msg_t* msgPtr);
 
-void G_Code_voidUpdateFeedRate(u32* feedratePtrt, G_Code_Msg_t* msgPtr);
+void G_Code_voidUpdateFeedRate(G_Code_Msg_t* msgPtr);
 
 b8 G_Code_b8ParseLine(G_Code_Msg_t* msgPtr, char* line);
 

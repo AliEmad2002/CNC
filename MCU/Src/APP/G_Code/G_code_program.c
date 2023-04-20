@@ -18,9 +18,6 @@
 /*	MCAL	*/
 #include "UART_interface.h"
 
-/*	APP CONFIG (some params are config dependent)	*/
-#include "CNC_config.h"
-
 /*	self	*/
 #include "G_code_interface.h"
 
@@ -63,7 +60,7 @@ u8 G_Code_u8FindNumberEnding(char* line, u8 start)
 	return start - 1;
 }
 
-void G_Code_voidCopyPoint(s32 point[], G_Code_Msg_t* msgPtr)
+void G_Code_voidCopyPoint(G_Code_Msg_t* msgPtr)
 {
 	u8 count = msgPtr->paramCount;
 	u8 isCpied[3] = {0};
@@ -71,59 +68,71 @@ void G_Code_voidCopyPoint(s32 point[], G_Code_Msg_t* msgPtr)
 	while(count--)
 	{
 		u8 pointIndex = msgPtr->paramChArr[count] - 'X';
-		point[pointIndex] = msgPtr->paramNumArr[count] * (f32)STEPS_PER_MM;
+		CNC.point[pointIndex] =
+			msgPtr->paramNumArr[count] *
+			(f32)CNC.config.stepsPerLengthUnit[pointIndex];
 		isCpied[pointIndex] = 1;
 	}
 
 	for (u8 i = 0; i < 3; i++)
 	{
 		if (isCpied[i] == 0)
-			point[i] = CNC.stepperArr[i].currentPos;
+			CNC.point[i] = CNC.stepperArr[i].currentPos;
 	}
 }
 
-void G_Code_voidCopyPointAL(s32 point[], G_Code_Msg_t* msgPtr)
+void G_Code_voidCopyPointAL(G_Code_Msg_t* msgPtr)
 {
-	point[5] = msgPtr->paramNumArr[5];
-	point[4] = msgPtr->paramNumArr[4];
+	CNC.point[5] = msgPtr->paramNumArr[5];
+	CNC.point[4] = msgPtr->paramNumArr[4];
 	
 	u8 i = 4;
 	while(i--)
-		point[i] = msgPtr->paramNumArr[i] * (f32)STEPS_PER_MM;
+		CNC.point[i] =
+			msgPtr->paramNumArr[i] *
+			(f32)CNC.config.stepsPerLengthUnit[i];
 }
 
-void G_CODE_voidCopyAcceleration(u32 mainParametersArr[], G_Code_Msg_t* msgPtr)
+void G_CODE_voidCopyAcceleration(G_Code_Msg_t* msgPtr)
 {
 	u8 count = msgPtr->paramCount;
 	while(count--)
 	{
+		/*	TODO: steps per unit  length is not the right way to do it	*/
 		if (msgPtr->paramChArr[count] == 'P')	// feed
 		{
-			mainParametersArr[ACCELFEED_INDEX] =
-					msgPtr->paramNumArr[count] * STEPS_PER_MM;
+			CNC.config.feedAccel =
+				msgPtr->paramNumArr[count] *
+				(f32)CNC.config.stepsPerLengthUnit[0] / 3600.0f;
 		}
 		else // if (paramCh[paramCount] == 'T')	// rapid
 		{
-			mainParametersArr[ACCELRAPID_INDEX] =
-				msgPtr->paramNumArr[count] * STEPS_PER_MM;
+			CNC.config.rapidAccel =
+				msgPtr->paramNumArr[count] *
+				(f32)CNC.config.stepsPerLengthUnit[0] / 3600.0f;
 		}
 	}
 }
 
-void G_Code_voidUpdateFeedRate(u32* feedratePtrt, G_Code_Msg_t* msgPtr)
+void G_Code_voidUpdateFeedRate(G_Code_Msg_t* msgPtr)
 {
 	u8 count = msgPtr->paramCount;
 	while(count--)
 	{
 		if (msgPtr->paramChArr[count] == 'F')
 		{
-			*feedratePtrt = (msgPtr->paramNumArr[count] * STEPS_PER_MM) / 60;
+			CNC.feedrate =
+				msgPtr->paramNumArr[count] *
+				(f32)CNC.config.stepsPerLengthUnit[0] / 60.0f;
 		}
 	}
 }
 
 b8 G_Code_b8ParseLine(G_Code_Msg_t* msgPtr, char* line)
 {
+	/*	make the whole line upper case	*/
+	strupr(line);
+
 	u8 endIndex;
 	/*	get code class	*/
 	msgPtr->codeClass = line[0];
@@ -152,6 +161,6 @@ b8 G_Code_b8ParseLine(G_Code_Msg_t* msgPtr, char* line)
 			Math_f32StrToFloat(line, tempEndIndex, endIndex);
 	}
 
-	/*	if all range checks pass	*/
+	/*	if all typo checks pass	*/
 	return true;
 }
