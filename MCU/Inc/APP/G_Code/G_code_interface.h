@@ -12,11 +12,14 @@
 enum G_CODE_G_COEDES {
 	G_CODE_rapidMovement =			0,
 	G_CODE_feedMovement =			1,
+ G_CODE_imperialUnits = 20,
+ G_CODE_metricUnits = 21,
 	G_CODE_autoLeveling =			29,
 	G_CODE_singleProbe =			30,
 	G_CODE_abslutePositioning =		90,
 	G_CODE_relativePositioning =	91,
-	G_CODE_softwareSetPosition =	92
+	G_CODE_softwareSetPosition =	92,
+ G_CODE_feedUnitPerMinute = 94
 	};
 	
 enum G_CODE_M_COEDES {
