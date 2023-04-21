@@ -124,6 +124,14 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			CNC_voidExecuteMovement(CNC, CNC_MovementType_feed);
 			break;
 
+		case G_CODE_imperialUnits:
+			CNC_voidUseImperialUnits(CNC);
+			break;
+
+		case G_CODE_metricUnits:
+			CNC_voidUseMetricUnits(CNC);
+			break;
+
 		case G_CODE_autoLeveling:
 			G_Code_voidCopyPointAL(msgPtr);
 			CNC_voidExecuteAutoLevelingSampling(CNC);
@@ -133,9 +141,21 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			CNC_voidProbe(CNC);
 			break;
 
+		case G_CODE_abslutePositioning:
+			CNC->config.relativePosEnabled = 0;
+			break;
+
+		case G_CODE_relativePositioning:
+			CNC->config.relativePosEnabled = 1;
+			break;
+
 		case G_CODE_softwareSetPosition:
 			G_Code_voidCopyPoint(msgPtr);
 			CNC_voidExecuteSoftwareSetPosition(CNC);
+			break;
+
+		case G_CODE_feedUnitPerMinute:
+			/*	do noting, as this is the only one supported so-far	*/
 			break;
 
 		default:
@@ -1190,5 +1210,41 @@ void CNC_voidProbe(CNC_t* CNC)
 
 		/*	update current timestamp	*/
 		timeCurrent = STK_u64GetElapsedTicks();
+	}
+}
+
+void CNC_voidUseImperialUnits(CNC_t* CNC)
+{
+	/*	if imperial units are already in use	*/
+	if (CNC->config.unitSys == 1)
+	{
+		/*	do nothing	*/
+		return;
+	}
+
+	/*	otherwise, convert the steps_per_unit vector	*/
+	CNC->config.unitSys = 1;
+
+	for (u8 i = 0; i < 3; i++)
+	{
+		CNC->config.stepsPerLengthUnit[i] *= 0.0393701f;
+	}
+}
+
+void CNC_voidUseMetricUnits(CNC_t* CNC)
+{
+	/*	if metric units are already in use	*/
+	if (CNC->config.unitSys == 0)
+	{
+		/*	do nothing	*/
+		return;
+	}
+
+	/*	otherwise, convert the steps_per_unit vector	*/
+	CNC->config.unitSys = 0;
+
+	for (u8 i = 0; i < 3; i++)
+	{
+		CNC->config.stepsPerLengthUnit[i] *= 25.4f;
 	}
 }

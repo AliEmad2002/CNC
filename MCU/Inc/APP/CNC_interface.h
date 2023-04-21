@@ -139,4 +139,8 @@ void CNC_voidMove3Axis(
  */
 void CNC_voidProbe(CNC_t* CNC);
 
+void CNC_voidUseImperialUnits(CNC_t* CNC);
+
+void CNC_voidUseMetricUnits(CNC_t* CNC);
+
 #endif /* CNC_INTERFACE_H_ */
