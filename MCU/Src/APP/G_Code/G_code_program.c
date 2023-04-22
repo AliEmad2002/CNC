@@ -114,6 +114,7 @@ void G_CODE_voidCopyAcceleration(G_Code_Msg_t* msgPtr)
 	}
 }
 
+/*	TODO: 'F' parameter is the maximum feedrate, not feedrate itself	*/
 void G_Code_voidUpdateFeedRate(G_Code_Msg_t* msgPtr)
 {
 	u8 count = msgPtr->paramCount;
