@@ -8,6 +8,7 @@
 /*	LIB	*/
 #include "Std_Types.h"
 #include "Bit_Math.h"
+#include <diag/trace.h>
 
 /*	MCAL	*/
 #include "FPEC_interface.h"

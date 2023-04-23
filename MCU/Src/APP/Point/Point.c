@@ -54,6 +54,17 @@ static u32 get_vb(PathPoint_t* a, PathPoint_t* b, PathPoint_t* c)
 	return (u32)(((f32)vMax) * get_sin_half_theta_b(a, b, c));
 }
 
+/*	returns magnitude of distance between two points	*/
+static u32 get_distance_between(PathPoint_t* a, PathPoint_t* b)
+{
+	s32 dx = a->x - b->x;
+	s32 dy = a->y - b->y;
+
+	u32 distSquared = dx * dx + dy * dy;
+	u32 dist = sqrt(distSquared);
+	return dist;
+}
+
 /*
  * Checks if acceleration settings can change va to vb in the distance between
  * them.
@@ -62,17 +73,46 @@ static u32 get_vb(PathPoint_t* a, PathPoint_t* b, PathPoint_t* c)
  */
 static u8 is_valid_transition(PathPoint_t* a, PathPoint_t* b)
 {
+	u32 x = get_distance_between(a, b);
 
+	u32 va = a->v;
+	u32 vb = b->v;
+
+	if (vb > va)
+	{
+		u32 vfSquared = va * va + 2 * accel * x;
+		if (vfSquared >= vb * vb)
+			return 1;
+		else
+			return 0;
+	}
+
+	else if (vb < va)
+	{
+		s32 vfSquared = (s32)(va * va) - (s32)(2 * accel * x);
+		if (vfSquared <= (s32)(vb * vb))
+			return 1;
+		else
+			return 0;
+	}
+
+	else
+		return 1;
 }
 
 static u32 get_max_possible_vb(PathPoint_t* a, PathPoint_t* b)
 {
+	u32 x = get_distance_between(a, b);
+	u32 va = a->v;
 
+	u32 vmaxSquared = va * va + 2 * accel * x;
+	u32 vmax = sqrt(vmaxSquared);
+	return vmax;
 }
 
 static u32 get_max_possible_va(PathPoint_t* a, PathPoint_t* b)
 {
-
+	return get_max_possible_vb(b, a);
 }
 
 /*
