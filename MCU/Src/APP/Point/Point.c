@@ -60,8 +60,8 @@ static u32 get_distance_between(PathPoint_t* a, PathPoint_t* b)
 	s32 dx = a->x - b->x;
 	s32 dy = a->y - b->y;
 
-	u32 distSquared = dx * dx + dy * dy;
-	u32 dist = sqrt(distSquared);
+	u64 distSquared = (u64)dx * (u64)dx + (u64)dy * (u64)dy;
+	u32 dist = (u32)sqrt(distSquared);
 	return dist;
 }
 
@@ -80,8 +80,8 @@ static u8 is_valid_transition(PathPoint_t* a, PathPoint_t* b)
 
 	if (vb > va)
 	{
-		u32 vfSquared = va * va + 2 * accel * x;
-		if (vfSquared >= vb * vb)
+		u64 vfSquared = (u64)va * (u64)va + 2ul * (u64)accel * (u64)x;
+		if (vfSquared >= (u64)vb * (u64)vb)
 			return 1;
 		else
 			return 0;
@@ -89,8 +89,8 @@ static u8 is_valid_transition(PathPoint_t* a, PathPoint_t* b)
 
 	else if (vb < va)
 	{
-		s32 vfSquared = (s32)(va * va) - (s32)(2 * accel * x);
-		if (vfSquared <= (s32)(vb * vb))
+		s64 vfSquared = (s64)va * (s64)va - 2 * (s64)accel * (s64)x;
+		if (vfSquared <= (s64)vb * (s64)vb)
 			return 1;
 		else
 			return 0;
@@ -105,8 +105,8 @@ static u32 get_max_possible_vb(PathPoint_t* a, PathPoint_t* b)
 	u32 x = get_distance_between(a, b);
 	u32 va = a->v;
 
-	u32 vmaxSquared = va * va + 2 * accel * x;
-	u32 vmax = sqrt(vmaxSquared);
+	u64 vmaxSquared = (u64)va * (u64)va + 2 * (u64)accel * (u64)x;
+	u32 vmax = (u32)sqrt(vmaxSquared);
 	return vmax;
 }
 

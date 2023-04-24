@@ -17,6 +17,7 @@
 #include "Stepper_interface.h"
 #include "DC_Motor_Interface.h"
 #include "Probe.h"
+#include "SDC_interface.h"
 
 #include "LevelMap.h"
 
@@ -59,6 +60,8 @@ typedef struct
 	LevelMap_t map;
 	
 	Probe_t probe;
+
+	SDC_t sdCard;
 }CNC_t;
 
 typedef enum{
@@ -142,5 +145,26 @@ void CNC_voidProbe(CNC_t* CNC);
 void CNC_voidUseImperialUnits(CNC_t* CNC);
 
 void CNC_voidUseMetricUnits(CNC_t* CNC);
+
+/*
+ * Asks user if they want to do any prior to file operations, and does it.
+ * For example:
+ * 		-	level mapping.
+ * 		-	setting parameters that not necessarily given in the G-code
+ * 			file, like acceleration, maximum in-air (rapid) speed, etc...
+ */
+ /*	TODO: use USB or debugger "printf()" and "scanf()", do HW UI later	*/
+void CNC_voidPriOperation(CNC_t* CNC);
+
+/*	Lets user choose a G-code file and starts executing	*/
+/*	TODO: use USB or debugger "printf()" and "scanf()", do HW UI later	*/
+void CNC_voidRunGcodeFile(CNC_t* CNC);
+
+/*
+ * Asks user if they want to do a new operation.
+ * Returns 1 if they do. 0 otherwise.
+ */
+ /*	TODO: use USB or debugger "printf()" and "scanf()", do HW UI later	*/
+u8 CNC_u8AskNew(CNC_t* CNC);
 
 #endif /* CNC_INTERFACE_H_ */

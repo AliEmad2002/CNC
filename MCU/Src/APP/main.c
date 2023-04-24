@@ -35,6 +35,7 @@
 /*	HAL	*/
 #include "Stepper_interface.h"
 #include "DC_Motor_Interface.h"
+#include "SDC_interface.h"
 
 /*	APP	*/
 #include "CNC_config.h"
@@ -49,15 +50,6 @@ Queue_t queue;
 
 int main(void)
 {
-	/*	init queue	*/
-	#if ENABLE_QUEUE
-		Queue_voidInit(&queue);
-	#else
-		trace_printf("Please enable Queue in \"Queue_Config.h\"!\n");
-		trace_printf("Program Stopped\n");
-		return -1;
-	#endif
-
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
 
@@ -68,26 +60,28 @@ int main(void)
 	CNC.map.mapArr = mapArr;
 	CNC_voidInit(&CNC);
 
-	/*	Super-Loop	*/
 	while(1)
 	{
-		/*	wait for queue counter to be at least one item	*/
-		while(Queue_u16GetLenUsed(&queue) == 0);
+		/*
+		 * Ask user if they want to do any prior to file operations.
+		 * For example:
+		 * 		-	level mapping.
+		 * 		-	setting parameters that not necessarily given in the G-code
+		 * 			file, like acceleration, maximum in-air (rapid) speed, etc...
+		 */
+		CNC_voidPriOperation(&CNC);
 
-		G_Code_Msg_t* msgPtr;	/*	no need for allocation, queue will do it	*/
+		/*	Let user choose G-code file to run from the SD-card, and run it	*/
+		CNC_voidRunGcodeFile(&CNC);
 
-		/*	pop first of the queue	*/
-		Queue_b8Pop(&queue, &msgPtr);
-
-		/*	execute the msg	*/
-		CNC_voidExecute(&CNC, msgPtr);
-
-		/*	free msgPtr	*/
-		G_Code_voidFreeMsg(msgPtr);
-
-		/*	send cmd completed ack	*/
-		(void)UART_enumSendByte(UART_UnitNumber_1, '$');
+		/*	Ask user if they want to do a new operation	*/
+		if (CNC_u8AskNew(&CNC))
+			continue;
+		else
+			break;
 	}
+
+	while(1);
 }
 
 void steppers_test(void)
@@ -110,9 +104,3 @@ void steppers_test(void)
 		Delay_voidBlockingDelayMs(delay);
 	}
 }
-
-
-
-
-
-

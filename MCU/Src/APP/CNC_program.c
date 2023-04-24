@@ -66,6 +66,10 @@ void CNC_voidInit(CNC_t* CNC)
 		&(CNC->spindle), SPINDLE_PWM_TIM_UNIT_NUMBER,
 		SPINDLE_PWM_TIM_CHANNEL, SPINDLE_PWM_AFIO_MAP);
 		
+	/*	SD card	*/
+	SDC_voidInitConnection(
+		&(CNC->sdCard), SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP);
+
 	/*
 	 * relative positioning and auto leveling are initially turned off, to
 	 * activate them, user may command their respective commands.
