@@ -16,12 +16,44 @@
 
 /*	SELF	*/
 #include "SDC_interface.h"
+#include "SDC_CRC.h"
 
 /*
  * Check this:
  * http://www.rjhcoding.com/avrc-sd-interface-2.php
  * http://my-cool-projects.blogspot.com/2013/06/sd-card-crc-algorithm-explained-in.html
  */
+static u8 get_crc(u8* arr, u32 len)
+{
+	/**
+	 * Study notes about CRC calculation:
+	 * 		-	Simply CRC is performing a modulo operation between two
+	 * 			polynomials, data polynomial and generator polynomial.
+	 *
+	 * 		-	Polynomials are represented like the following examples:
+	 * 				0b1101   == x^3 + x^2 + 1
+	 * 				0b101001 == x^5 + x^3 + 1
+	 *
+	 * 		-	Binary polynomial division is very similar to binary numerical
+	 * 			division, except that it uses successive XOR'ing instead of
+	 * 			successive subtraction.
+	 *
+	 * 		-	let  :	D0 = D[0:7], D1 = D[8:15], D = D[0:15]
+	 *		 			C1 = CRC(D1)
+	 *
+	 * 			then : CRC(D) = CRC((C1 << 1) ^ D0)
+	 *
+	 * 			TODO: ask eng: mohamed ali, why?
+	 **/
+	u8 c = crcTable[0];
+
+	for (s32 i = (s32)len - 1; i >= 0; i--)
+	{
+		c = crcTable[(c << 1) ^ arr[i]];
+	}
+
+	return c;
+}
 
 static send_command(u8 index, u32 arg)
 {
