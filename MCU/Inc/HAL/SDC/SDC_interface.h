@@ -12,13 +12,15 @@
 #include "GPIO_interface.h"
 
 typedef struct{
-
+	SPI_UnitNumber_t spiUnitNumber;
+	u8 csPin  : 4;
+	u8 csPort : 4;
 }SDC_t;
 
+#define SDC_CMD_GO_IDLE		0
+
 typedef struct{
-	SPI_UnitNumber_t spiUnitNumber;
-	u8 csPin : 4;
-	u8 csPort : 4;
+
 }SD_Stream_t;
 
 /*

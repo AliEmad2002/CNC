@@ -14,6 +14,7 @@
 #include "Error_Handler_interface.h"
 
 /*	MCAL	*/
+#include "RCC_interface.h"
 #include "STK_interface.h"
 #include "DMA_interface.h"
 #include "GPIO_interface.h"
@@ -22,6 +23,32 @@
 /*	SELF	*/
 #include "SPI_private.h"
 #include "SPI_interface.h"
+
+ALWAYS_INLINE_STATIC enable_clock(SPI_UnitNumber_t unitNumber)
+{
+	u8 peripheralNumber;
+	RCC_Bus_t bus;
+	switch (unitNumber)
+	{
+	case SPI_UnitNumber_1:
+		peripheralNumber = RCC_PERIPHERAL_SPI1;
+		bus = RCC_Bus_APB2;
+		break;
+
+	case SPI_UnitNumber_2:
+		peripheralNumber = RCC_PERIPHERAL_SPI2;
+		bus = RCC_Bus_APB1;
+		break;
+
+	case SPI_UnitNumber_3:
+		peripheralNumber = RCC_PERIPHERAL_SPI3;
+		bus = RCC_Bus_APB1;
+		break;
+	}
+
+	if (RCC_b8IsPeripheralEnabled(bus, peripheralNumber))
+		RCC_voidEnablePeripheralClk(bus, peripheralNumber);
+}
 
 /*
  * inits a SPI peripheral.
@@ -35,6 +62,9 @@ void SPI_voidInit(
 		SPI_ClockPhase_t clockPhase
 	)
 {
+	/*	if unit clock is not enabled, enable it first	*/
+	enable_clock(unitNumber);
+
 	WRT_BIT(SPI[unitNumber]->CR1, SPI_CR1_BIDIMODE, directionalMode);
 
 	WRT_BIT(SPI[unitNumber]->CR1, SPI_CR1_DFF, frameFormat);
