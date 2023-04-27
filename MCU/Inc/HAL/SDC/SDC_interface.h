@@ -11,12 +11,35 @@
 #include "SPI_interface.h"
 #include "GPIO_interface.h"
 
+/*	SD-Card version	*/
+typedef enum{
+	SDC_Version_Unknown,
+	SDC_Version_3,
+	SDC_Version_2_ByteAddress,
+	SDC_Version_2_BlockAddress,
+	SDC_Version_1
+}SDC_Version_t;
+
 /*	SD-Card	*/
 typedef struct{
 	SPI_UnitNumber_t spiUnitNumber;
 	u8 csPin  : 4;
 	u8 csPort : 4;
+	SDC_Version_t ver;
 }SDC_t;
+
+/*
+ * SD-Card's OCR register.
+ * (defined in p161 of the doc: Physical Layer Simplified Specification Version 6.00)
+ */
+typedef struct{
+	u32 vddVoltageWindow : 24;
+	u32 switchAccepted   : 1;
+	u32 reserved         : 4;
+	u32 uhs              : 1;
+	u32 ccs              : 1;
+	u32 busy             : 1;
+}SDC_OCR_t;
 
 /*	Responses	*/
 typedef struct{
@@ -35,7 +58,8 @@ typedef struct{
 }SDC_R2_t;
 
 typedef struct{
-
+	SDC_OCR_t ocr;
+	SDC_R1_t r1;
 }SDC_R3_t;
 
 typedef struct{
@@ -49,16 +73,13 @@ typedef struct{
 	SDC_R1_t r1;
 }SDC_R7_t;
 
-typedef enum{
-
-}SDC_Version_t;
-
 typedef struct{
 
 }SD_Stream_t;
 
 /*
  * Initializes connection with the SD-card object.
+ * (Notice that SysTick elapsed time counter MUST be enabled)
  */
 void SDC_voidInitConnection(
 	SDC_t* sdc, SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap);

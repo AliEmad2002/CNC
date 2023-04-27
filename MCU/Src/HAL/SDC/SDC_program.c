@@ -12,6 +12,7 @@
 #include "diag/trace.h"
 
 /*	MCAL	*/
+#include "STK_interface.h"
 #include "SPI_interface.h"
 #include "GPIO_interface.h"
 
@@ -126,11 +127,40 @@ static u8 get_r1(SDC_t* sdc, SDC_R1_t* response)
 	return 0;
 }
 
+static u8 get_r3(SDC_t* sdc, SDC_R3_t* response)
+{
+	// get R1 of this R3 response:
+	u8 gotR1 = get_r1(sdc, &(response->r1));
+	if (!gotR1)
+		return 0;
+	if (
+		response->r1.addressErr	  	||
+		response->r1.cmdCrcErr  	||
+		response->r1.eraseSeqErr   	||
+		response->r1.illigalCmdErr 	||
+		response->r1.parameterErr
+	)
+		return 0;
+
+	// get rest of R3 response (OCR value):
+	SPI_voidReceiveArrMsFirst(sdc->spiUnitNumber, (u8*)response, 4);
+
+	return 1;
+}
+
 static u8 get_r7(SDC_t* sdc, SDC_R7_t* response)
 {
 	// get R1 of this R7 response:
 	u8 gotR1 = get_r1(sdc, &(response->r1));
 	if (!gotR1)
+		return 0;
+	if (
+		response->r1.addressErr	  	||
+		response->r1.cmdCrcErr  	||
+		response->r1.eraseSeqErr   	||
+		response->r1.illigalCmdErr 	||
+		response->r1.parameterErr
+	)
 		return 0;
 
 	// get rest of R7 response:
@@ -173,6 +203,187 @@ static void send_acmd(SDC_t* sdc, u8 index, u32 arg)
 	send_command(sdc, index, arg);
 }
 
+static SDC_OCR_t get_ocr(SDC_t* sdc)
+{
+	SDC_R3_t r3;
+	u8 gotR3;
+
+	/*	send CMD58	*/
+	send_command(sdc, 58, 0);
+
+	/*	get response (R3)	*/
+	gotR3 = get_r3(sdc, &r3);
+	if (!gotR3)
+	{
+		trace_printf("SD-card failed. Can't get OCR value");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+
+	return r3.ocr;
+}
+
+static void set_block_len(SDC_t* sdc, u32 len)
+{
+	SDC_R1_t r1;
+	u8 gotR1;
+
+	send_command(sdc, 16, len);
+
+	/*	get response (R1)	*/
+	gotR1 = get_r1(sdc, &r1);
+	if (!gotR1)
+	{
+		trace_printf("SD-card failed. No response on setting block size");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+	if (
+		r1.addressErr	  	||
+		r1.cmdCrcErr  		||
+		r1.eraseSeqErr   	||
+		r1.illigalCmdErr 	||
+		r1.parameterErr
+	)
+	{
+		trace_printf("SD-card failed. error response");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+}
+
+/*
+ * Following are the branches labeled on the initialization flow diagram, each
+ * branch has a timeout of 1 second.
+ * (Diagram is at the directory: ../Inc/HAL/SDC)
+ */
+ALWAYS_INLINE_STATIC SDC_Version_t init_branch_2(SDC_t* sdc)
+{
+	SDC_R1_t r1;
+	u8 gotR1;
+
+	u64 startTime = STK_u64GetElapsedTicks();
+
+	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * 1000)
+	{
+		/*	send CMD1	*/
+		send_command(sdc, 1, 0);
+
+		/*	get response (R1)	*/
+		gotR1 = get_r1(sdc, &r1);
+		if (!gotR1)	// if no response:
+			return SDC_Version_Unknown;
+
+		else if (	// if error response:
+			r1.addressErr	  	||
+			r1.cmdCrcErr  		||
+			r1.eraseSeqErr   	||
+			r1.illigalCmdErr 	||
+			r1.parameterErr
+		)
+			return SDC_Version_Unknown;
+
+		if (r1.inIdleState == 1) // card needs more time:
+			continue;
+
+		else	// card has received and processed the ACMD41 successfully
+			return SDC_Version_3;
+	}
+
+	// if timeout period passed:
+	return SDC_Version_Unknown;
+}
+
+ALWAYS_INLINE_STATIC SDC_Version_t init_branch_1(SDC_t* sdc)
+{
+	SDC_R1_t r1;
+	u8 gotR1;
+
+	u64 startTime = STK_u64GetElapsedTicks();
+
+	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * 1000)
+	{
+		/*	send ACMD41	*/
+		send_acmd(sdc, 41, 0);
+
+		/*	get response (R1)	*/
+		gotR1 = get_r1(sdc, &r1);
+		if (!gotR1)	// if no response:
+			return init_branch_2(sdc);
+
+		else if (	// if error response:
+			r1.addressErr	  	||
+			r1.cmdCrcErr  		||
+			r1.eraseSeqErr   	||
+			r1.illigalCmdErr 	||
+			r1.parameterErr
+		)
+			return init_branch_2(sdc);
+
+		if (r1.inIdleState == 1) // card needs more time:
+			continue;
+
+		else	// card has received and processed the ACMD41 successfully
+			return SDC_Version_1;
+	}
+
+	// if timeout period passed:
+	return init_branch_2(sdc);
+}
+
+ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
+{
+	SDC_R1_t r1;
+	u8 gotR1;
+
+	u64 startTime = STK_u64GetElapsedTicks();
+
+	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * 1000)
+	{
+		/*	send ACMD41	*/
+		send_acmd(sdc, 41, 0x40000000);
+
+		/*	get response (R1)	*/
+		gotR1 = get_r1(sdc, &r1);
+		if (!gotR1)	// if no response:
+			return SDC_Version_Unknown;
+
+		else if (	// if error response:
+			r1.addressErr	  	||
+			r1.cmdCrcErr  		||
+			r1.eraseSeqErr   	||
+			r1.illigalCmdErr 	||
+			r1.parameterErr
+		)
+			return SDC_Version_Unknown;
+
+		if (r1.inIdleState == 1) // card needs more time:
+			continue;
+
+		else	// card has received and processed the ACMD41 successfully
+		{
+			/*	read card's OCR	*/
+			SDC_OCR_t ocr = get_ocr(sdc);
+
+			if (ocr.ccs == 0)
+				return SDC_Version_2_ByteAddress;
+			else
+				return SDC_Version_2_BlockAddress;
+		}
+	}
+
+	// if timeout period passed:
+	return SDC_Version_Unknown;
+}
+
+
+
+
+
+
 void SDC_voidInitConnection(
 	SDC_t* sdc, SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
 {
@@ -180,7 +391,6 @@ void SDC_voidInitConnection(
 	SDC_R7_t r7;
 	u8 gotR1;
 	u8 gotR7;
-	SDC_Version_t ver;
 
 	/**	Init SPI unit	**/
 	sdc->spiUnitNumber = spiUnitNumber;
@@ -198,7 +408,7 @@ void SDC_voidInitConnection(
 	sdc->csPort = csPin / 16;
 	GPIO_voidSetPinGpoPushPull(sdc->csPort, sdc->csPin);
 
-	/**	Initialization flow: http://elm-chan.org/docs/mmc/m/sdinit.png	**/
+	/**	Initialization flow: (Diagram is at the directory: ../Inc/HAL/SDC)	**/
 	Delay_voidBlockingDelayMs(2);
 
 	GPIO_SET_PIN_HIGH(sdc->csPort, sdc->csPin);
@@ -240,8 +450,33 @@ void SDC_voidInitConnection(
 	/*	send CMD8	*/
 	send_command(sdc, 8, 0x000001AA);
 
+	/*	get response (R7)	*/
+	gotR7 = get_r7(sdc, &r7);
 
+	if (!gotR7)	// if no response:
+		sdc->ver = init_branch_1(sdc);
 
+	else if (r7.checkPattern == 0xAA && r7.voltageAccepted == 1)
+		sdc->ver = init_branch_0(sdc);
+
+	else	// mismatch
+		sdc->ver = SDC_Version_Unknown;
+
+	/*	if version is unknown	*/
+	if (sdc->ver == SDC_Version_Unknown)
+	{
+		trace_printf("SD-card initialization failed. Unknown version");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+
+	/*	if version is known and other than "SDC_Version_2_BlockAddress"	*/
+	if (sdc->ver != SDC_Version_2_BlockAddress)
+	{
+		/*	set block len to 512 bytes (CMD16)	*/
+		set_block_len(sdc, 512);
+	}
 }
 
 
