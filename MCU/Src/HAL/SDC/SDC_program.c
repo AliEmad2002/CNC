@@ -90,7 +90,7 @@ static void send_command(SDC_t* sdc, u8 index, u32 arg)
  *
  * Returns 1 if received, 0 otherwise.
  */
-static u8 get_response(SDC_t* sdc, SDC_Response_t* response)
+static u8 get_r1(SDC_t* sdc, SDC_R1_t* response)
 {
 	u8 data;
 	for (u8 i = 0; i < 8; i++)
@@ -126,9 +126,62 @@ static u8 get_response(SDC_t* sdc, SDC_Response_t* response)
 	return 0;
 }
 
+static u8 get_r7(SDC_t* sdc, SDC_R7_t* response)
+{
+	// get R1 of this R7 response:
+	u8 gotR1 = get_r1(sdc, &(response->r1));
+	if (!gotR1)
+		return 0;
+
+	// get rest of R7 response:
+	SPI_voidReceiveArrMsFirst(sdc->spiUnitNumber, (u8*)response, 4);
+
+	return 1;
+}
+
+static void send_acmd(SDC_t* sdc, u8 index, u32 arg)
+{
+	/*	send leading CMD55	*/
+	send_command(sdc, 55, 0);
+
+	/*	Receive R1	*/
+	SDC_R1_t r1;
+	u8 gotR1 = get_r1(sdc, &r1);
+	if (!gotR1)
+	{
+		trace_printf("SD-card cmd55 failed. No response");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+	if (
+		r1.addressErr	  	||
+		r1.cmdCrcErr  		||
+		r1.eraseSeqErr   	||
+		r1.illigalCmdErr 	||
+		r1.parameterErr  	||
+		r1.inIdleState != 1
+	)
+	{
+		trace_printf("SD-card cmd55 failed. error response");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+
+	/*	Now send command	*/
+	send_command(sdc, index, arg);
+}
+
 void SDC_voidInitConnection(
 	SDC_t* sdc, SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
 {
+	SDC_R1_t r1;
+	SDC_R7_t r7;
+	u8 gotR1;
+	u8 gotR7;
+	SDC_Version_t ver;
+
 	/**	Init SPI unit	**/
 	sdc->spiUnitNumber = spiUnitNumber;
 	SPI_voidInit(
@@ -160,24 +213,22 @@ void SDC_voidInitConnection(
 	/*	send CMD0	*/
 	send_command(sdc, 0, 0);
 
-	/*	get response	*/
-	SDC_Response_t resp;
-	u8 gotResp = get_response(sdc, &resp);
-	if (!gotResp)
+	/*	get response (R1)	*/
+	gotR1 = get_r1(sdc, &r1);
+	if (!gotR1)
 	{
 		trace_printf("SD-card initialization failed. No response");
 		u8 stop = 1;
 		__asm volatile ("bkpt 0");
 		while(stop);
 	}
-
 	if (
-		resp.r1.addressErr	  	||
-		resp.r1.cmdCrcErr  	  	||
-		resp.r1.eraseSeqErr   	||
-		resp.r1.illigalCmdErr 	||
-		resp.r1.parameterErr  	||
-		resp.r1.inIdleState != 1
+		r1.addressErr	  	||
+		r1.cmdCrcErr  		||
+		r1.eraseSeqErr   	||
+		r1.illigalCmdErr 	||
+		r1.parameterErr  	||
+		r1.inIdleState != 1
 	)
 	{
 		trace_printf("SD-card initialization failed. error response");
@@ -185,6 +236,9 @@ void SDC_voidInitConnection(
 		__asm volatile ("bkpt 0");
 		while(stop);
 	}
+
+	/*	send CMD8	*/
+	send_command(sdc, 8, 0x000001AA);
 
 
 

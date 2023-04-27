@@ -39,15 +39,19 @@ typedef struct{
 }SDC_R3_t;
 
 typedef struct{
-
+	u8 checkPattern     : 8;
+	u8 voltageAccepted  : 4;
+	u8 reserved0        : 4;
+	u8 reserved1        : 4;
+	u8 reserved2        : 4;
+	u8 reserved3        : 4;
+	u8 commandVersion   : 4;
+	SDC_R1_t r1;
 }SDC_R7_t;
 
-typedef union{
-	SDC_R1_t r1;
-	SDC_R2_t r2;
-	SDC_R3_t r3;
-	SDC_R7_t r7;
-}SDC_Response_t;
+typedef enum{
+
+}SDC_Version_t;
 
 typedef struct{
 
