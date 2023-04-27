@@ -11,13 +11,43 @@
 #include "SPI_interface.h"
 #include "GPIO_interface.h"
 
+/*	SD-Card	*/
 typedef struct{
 	SPI_UnitNumber_t spiUnitNumber;
 	u8 csPin  : 4;
 	u8 csPort : 4;
 }SDC_t;
 
-#define SDC_CMD_GO_IDLE		0
+/*	Responses	*/
+typedef struct{
+	u8 inIdleState   : 1;
+	u8 eraseRst      : 1;
+	u8 illigalCmdErr : 1;
+	u8 cmdCrcErr     : 1;
+	u8 eraseSeqErr   : 1;
+	u8 addressErr    : 1;
+	u8 parameterErr  : 1;
+	u8 startBit      : 1;		// always received 0
+}SDC_R1_t;
+
+typedef struct{
+
+}SDC_R2_t;
+
+typedef struct{
+
+}SDC_R3_t;
+
+typedef struct{
+
+}SDC_R7_t;
+
+typedef union{
+	SDC_R1_t r1;
+	SDC_R2_t r2;
+	SDC_R3_t r3;
+	SDC_R7_t r7;
+}SDC_Response_t;
 
 typedef struct{
 

@@ -1252,3 +1252,44 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 		CNC->config.stepsPerLengthUnit[i] *= 25.4f;
 	}
 }
+
+void CNC_voidPriOperation(CNC_t* CNC)
+{
+
+}
+
+void CNC_voidRunGcodeFile(CNC_t* CNC)
+{
+
+}
+
+u8 CNC_u8AskNew(CNC_t* CNC)
+{
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

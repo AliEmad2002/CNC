@@ -24,10 +24,10 @@
 #include "SPI_private.h"
 #include "SPI_interface.h"
 
-ALWAYS_INLINE_STATIC enable_clock(SPI_UnitNumber_t unitNumber)
+ALWAYS_INLINE_STATIC void enable_clock(SPI_UnitNumber_t unitNumber)
 {
-	u8 peripheralNumber;
-	RCC_Bus_t bus;
+	u8 peripheralNumber = 0;
+	RCC_Bus_t bus = 0;
 	switch (unitNumber)
 	{
 	case SPI_UnitNumber_1:
@@ -46,7 +46,7 @@ ALWAYS_INLINE_STATIC enable_clock(SPI_UnitNumber_t unitNumber)
 		break;
 	}
 
-	if (RCC_b8IsPeripheralEnabled(bus, peripheralNumber))
+	if (!RCC_b8IsPeripheralEnabled(bus, peripheralNumber))
 		RCC_voidEnablePeripheralClk(bus, peripheralNumber);
 }
 
@@ -354,6 +354,23 @@ u16 SPI_u16TransceiveData(SPI_UnitNumber_t unitNumber, u16 data)
 	return received;
 }
 
+u8 SPI_u8TransceiveData(SPI_UnitNumber_t unitNumber, u8 data)
+{
+	/*	wait for SPI peripheral to finish whatever it is doing	*/
+	while(SPI_GET_FLAG(unitNumber, SPI_Flag_Busy));
+
+	/*	load data register	*/
+	SPI[unitNumber]->DR = ((u16)data) & 0x00FF;
+
+	/*	wait for SPI peripheral to finish transceiving	*/
+	while(SPI_GET_FLAG(unitNumber, SPI_Flag_Busy));
+
+	/*	return received data	*/
+	u8 received = (u8)(SPI[unitNumber]->DR);
+
+	return received;
+}
+
 /*
  * send data only
  * (faster when interfacing devices that do not response)
@@ -365,6 +382,18 @@ void SPI_voidTransmitData(SPI_UnitNumber_t unitNumber, u16 data)
 
 	/*	load data register	*/
 	SPI[unitNumber]->DR = data;
+}
+
+/*
+ * Sends an array of bytes, most significant byte is send first.
+ * (SPI 8-bit mode must be selected)
+ */
+void SPI_voidTransmitArrMsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len)
+{
+	for (s32 i = (s32)len - 1; i >= 0; i--)
+	{
+		SPI_TRANSMIT(unitNumber, arr[i]);
+	}
 }
 
 /*	enables DMA request	*/

@@ -226,6 +226,7 @@ void SPIvoidMasterDisableSlaveSelectOutput(SPI_UnitNumber_t unitNumber);
  * transceives data
  */
 u16 SPI_u16TransceiveData(SPI_UnitNumber_t unitNumber, u16 data);
+u8 SPI_u8TransceiveData(SPI_UnitNumber_t unitNumber, u8 data);
 
 /*
  * send data only
@@ -239,6 +240,12 @@ void SPI_voidTransmitData(SPI_UnitNumber_t unitNumber, u16 data);
 	while(SPI_GET_FLAG((unitNumber), SPI_Flag_Busy));  \
 	SPI[(unitNumber)]->DR = (data);                    \
 }
+
+/*
+ * Sends an array of bytes, most significant byte is send first.
+ * (SPI 8-bit mode must be selected)
+ */
+void SPI_voidTransmitArrMsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len);
 
 /*	enables DMA request	*/
 void SPI_voidEnableDMA(SPI_UnitNumber_t unitNumber, SPI_DMA_Request_t request);

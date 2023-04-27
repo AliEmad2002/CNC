@@ -9,6 +9,7 @@
 #include "Std_Types.h"
 #include "Bit_Math.h"
 #include "Delay_interface.h"
+#include "diag/trace.h"
 
 /*	MCAL	*/
 #include "SPI_interface.h"
@@ -22,8 +23,9 @@
  * Check this:
  * http://www.rjhcoding.com/avrc-sd-interface-2.php
  * http://my-cool-projects.blogspot.com/2013/06/sd-card-crc-algorithm-explained-in.html
+ * https://bits4device.wordpress.com/2017/12/16/sd-crc7-crc16-implementation/
  */
-static u8 get_crc(u8* arr, u32 len)
+static u8 get_crc7(u8* arr, u32 len)
 {
 	/**
 	 * Study notes about CRC calculation:
@@ -45,22 +47,83 @@ static u8 get_crc(u8* arr, u32 len)
 	 *
 	 * 			TODO: ask eng: mohamed ali, why?
 	 **/
-	u8 c = crcTable[0];
+	u8 c = crc7Table[0];
 
 	for (s32 i = (s32)len - 1; i >= 0; i--)
 	{
-		c = crcTable[(c << 1) ^ arr[i]];
+		c = crc7Table[(c << 1) ^ arr[i]];
 	}
 
 	return c;
 }
 
-static send_command(u8 index, u32 arg)
+static void send_command(SDC_t* sdc, u8 index, u32 arg)
 {
-	/**
-	 * SD card uses CRC7, polynomial is 0x89
-	 *
-	 **/
+	// create command frame:
+	u8* argPtr = (u8*)&arg;
+	u8 cmdFrame[6] = {
+		0b00000001, // CRC and stop bit (initially CRC is 0 as it is not yet calculated)
+		argPtr[0],
+		argPtr[1],
+		argPtr[2],
+		argPtr[3],
+		0b01000000 | index	// index and start bits.
+	};
+
+	// calculate CRC and copy it to he frame:
+	u8 crc = get_crc7(&cmdFrame[1], 5);
+	cmdFrame[0] |= (crc << 1);
+
+	for (unsigned int i = 0; i < 6; i++)
+	{
+		trace_printf("%d\n", (u32)cmdFrame[i]);
+	}
+
+	// send it over SPI:
+	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, cmdFrame, 6);
+}
+
+/*
+ * Receives response with a time out of 8 SPI bytes. as:
+ * "The response is sent back within command response time (NCR), 0 to 8 bytes
+ * for SDC, 1 to 8 bytes for MMC".
+ *
+ * Returns 1 if received, 0 otherwise.
+ */
+static u8 get_response(SDC_t* sdc, SDC_Response_t* response)
+{
+	u8 data;
+	for (u8 i = 0; i < 8; i++)
+	{
+		data = SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF);
+		if (data != 0xFF)	// response start bit is received
+		{
+			if (GET_BIT(data, 7) == 0) // if MSB of "data" is the start bit
+				*((u8*)response) = data;
+
+			else
+			{
+				trace_printf("start bit odd case has tto be implemented");
+				__asm volatile ("bkpt 0");
+			}
+
+//			else // otherwise, a bit in the middle of "data" is the start bit
+//			{
+//				// receive the next byte:
+//				u8 data2 = SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF);
+//
+//				// merge the two bytes:
+//				u16 data16 = (u16)data << 8 | data2;
+//
+//				// shift "data16" right until the start bit is in place of bit #7
+//
+//				// copy "data16[0:7]" to "*response"
+//			}
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 void SDC_voidInitConnection(
@@ -94,7 +157,37 @@ void SDC_voidInitConnection(
 	/*	select chip	*/
 	GPIO_SET_PIN_LOW(sdc->csPort, sdc->csPin);
 
-	send_command(SDC_CMD_GO_IDLE, 0);
+	/*	send CMD0	*/
+	send_command(sdc, 0, 0);
+
+	/*	get response	*/
+	SDC_Response_t resp;
+	u8 gotResp = get_response(sdc, &resp);
+	if (!gotResp)
+	{
+		trace_printf("SD-card initialization failed. No response");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+
+	if (
+		resp.r1.addressErr	  	||
+		resp.r1.cmdCrcErr  	  	||
+		resp.r1.eraseSeqErr   	||
+		resp.r1.illigalCmdErr 	||
+		resp.r1.parameterErr  	||
+		resp.r1.inIdleState != 1
+	)
+	{
+		trace_printf("SD-card initialization failed. error response");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+
+
+
 }
 
 

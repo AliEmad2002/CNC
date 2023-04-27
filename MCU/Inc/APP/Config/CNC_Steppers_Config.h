@@ -11,7 +11,7 @@
 
 /*	stepper motor drivers' pins (slave in our poor pathetic case)	*/
 #define X_STEP_PIN							GPIO_Pin_A4
-#define X_DIR_PIN							GPIO_Pin_A5
+#define X_DIR_PIN							GPIO_Pin_A9
 
 #define Y_STEP_PIN							GPIO_Pin_A2
 #define Y_DIR_PIN							GPIO_Pin_A3

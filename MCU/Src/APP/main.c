@@ -46,7 +46,7 @@ void steppers_test(void);
 
 static s32 mapArr[400];
 CNC_t CNC;
-Queue_t queue;
+
 
 int main(void)
 {
