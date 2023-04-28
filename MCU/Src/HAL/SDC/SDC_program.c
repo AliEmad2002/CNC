@@ -75,11 +75,6 @@ static void send_command(SDC_t* sdc, u8 index, u32 arg)
 	u8 crc = get_crc7(&cmdFrame[1], 5);
 	cmdFrame[0] |= (crc << 1);
 
-	for (unsigned int i = 0; i < 6; i++)
-	{
-		trace_printf("%d\n", (u32)cmdFrame[i]);
-	}
-
 	// send it over SPI:
 	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, cmdFrame, 6);
 }
@@ -93,7 +88,7 @@ static void send_command(SDC_t* sdc, u8 index, u32 arg)
  */
 static u8 get_r1(SDC_t* sdc, SDC_R1_t* response)
 {
-	u8 data;
+	volatile u8 data;
 	for (u8 i = 0; i < 8; i++)
 	{
 		data = SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF);
@@ -260,6 +255,7 @@ static void set_block_len(SDC_t* sdc, u32 len)
  * branch has a timeout of 1 second.
  * (Diagram is at the directory: ../Inc/HAL/SDC)
  */
+#define INIT_LOOP_TIMEOUT_MS		10000
 ALWAYS_INLINE_STATIC SDC_Version_t init_branch_2(SDC_t* sdc)
 {
 	SDC_R1_t r1;
@@ -267,7 +263,7 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_2(SDC_t* sdc)
 
 	u64 startTime = STK_u64GetElapsedTicks();
 
-	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * 1000)
+	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * INIT_LOOP_TIMEOUT_MS)
 	{
 		/*	send CMD1	*/
 		send_command(sdc, 1, 0);
@@ -304,7 +300,7 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_1(SDC_t* sdc)
 
 	u64 startTime = STK_u64GetElapsedTicks();
 
-	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * 1000)
+	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * INIT_LOOP_TIMEOUT_MS)
 	{
 		/*	send ACMD41	*/
 		send_acmd(sdc, 41, 0);
@@ -341,15 +337,18 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
 
 	u64 startTime = STK_u64GetElapsedTicks();
 
-	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * 1000)
+	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * INIT_LOOP_TIMEOUT_MS)
 	{
 		/*	send ACMD41	*/
-		send_acmd(sdc, 41, 0x40000000);
+		send_acmd(sdc, 41, 1 << 30);
 
 		/*	get response (R1)	*/
 		gotR1 = get_r1(sdc, &r1);
 		if (!gotR1)	// if no response:
+		{
+			trace_printf("exit1\n");
 			return SDC_Version_Unknown;
+		}
 
 		else if (	// if error response:
 			r1.addressErr	  	||
@@ -358,10 +357,16 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
 			r1.illigalCmdErr 	||
 			r1.parameterErr
 		)
+		{
+			trace_printf("exit2\n");
 			return SDC_Version_Unknown;
+		}
 
 		if (r1.inIdleState == 1) // card needs more time:
+		{
+			Delay_voidBlockingDelayMs(100);
 			continue;
+		}
 
 		else	// card has received and processed the ACMD41 successfully
 		{
@@ -376,13 +381,9 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
 	}
 
 	// if timeout period passed:
+	trace_printf("exit3\n");
 	return SDC_Version_Unknown;
 }
-
-
-
-
-
 
 void SDC_voidInitConnection(
 	SDC_t* sdc, SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
