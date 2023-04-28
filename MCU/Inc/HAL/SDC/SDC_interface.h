@@ -26,52 +26,8 @@ typedef struct{
 	u8 csPin  : 4;
 	u8 csPort : 4;
 	SDC_Version_t ver;
+	u8 crcEnabled;
 }SDC_t;
-
-/*
- * SD-Card's OCR register.
- * (defined in p161 of the doc: Physical Layer Simplified Specification Version 6.00)
- */
-typedef struct{
-	u32 vddVoltageWindow : 24;
-	u32 switchAccepted   : 1;
-	u32 reserved         : 4;
-	u32 uhs              : 1;
-	u32 ccs              : 1;
-	u32 busy             : 1;
-}SDC_OCR_t;
-
-/*	Responses	*/
-typedef struct{
-	u8 inIdleState   : 1;
-	u8 eraseRst      : 1;
-	u8 illigalCmdErr : 1;
-	u8 cmdCrcErr     : 1;
-	u8 eraseSeqErr   : 1;
-	u8 addressErr    : 1;
-	u8 parameterErr  : 1;
-	u8 startBit      : 1;		// always received 0
-}SDC_R1_t;
-
-typedef struct{
-
-}SDC_R2_t;
-
-typedef struct{
-	SDC_OCR_t ocr;
-	SDC_R1_t r1;
-}SDC_R3_t;
-
-typedef struct{
-	u8 checkPattern     : 8;
-	u8 voltageAccepted  : 4;
-	u8 reserved0        : 4;
-	u8 reserved1        : 4;
-	u8 reserved2        : 4;
-	u8 reserved3        : 4;
-	u8 commandVersion   : 4;
-	SDC_R1_t r1;
-}SDC_R7_t;
 
 typedef struct{
 
@@ -82,7 +38,20 @@ typedef struct{
  * (Notice that SysTick elapsed time counter MUST be enabled)
  */
 void SDC_voidInitConnection(
-	SDC_t* sdc, SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap);
+	SDC_t* sdc, u8 crcEnable,
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap);
+
+/*
+ * Writes data block (512 bytes) in the SD-card.
+ * Returns 1 if written successfully, 0 otherwise.
+ */
+u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber);
+
+/*
+ * Reads data block (512 bytes) from the SD-card.
+ * Returns 1 if read successfully, 0 otherwise.
+ */
+u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber);
 
 /*
  * Opens file from the SD card on a stream object.

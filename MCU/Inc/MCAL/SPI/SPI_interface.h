@@ -254,6 +254,13 @@ void SPI_voidTransmitArrMsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len);
  */
 void SPI_voidReceiveArrMsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len);
 
+/*
+ * Receives an array of bytes, least significant byte is expected to be received first.
+ * (SPI 8-bit mode must be selected)
+ * (Sends 0xFF)
+ */
+void SPI_voidReceiveArrLsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len);
+
 /*	enables DMA request	*/
 void SPI_voidEnableDMA(SPI_UnitNumber_t unitNumber, SPI_DMA_Request_t request);
 

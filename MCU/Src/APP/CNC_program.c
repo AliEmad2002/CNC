@@ -68,7 +68,7 @@ void CNC_voidInit(CNC_t* CNC)
 		
 	/*	SD card	*/
 	SDC_voidInitConnection(
-		&(CNC->sdCard), SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP);
+		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP);
 
 	/*
 	 * relative positioning and auto leveling are initially turned off, to

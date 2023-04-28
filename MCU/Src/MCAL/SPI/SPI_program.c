@@ -404,6 +404,14 @@ void SPI_voidReceiveArrMsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len)
 	}
 }
 
+void SPI_voidReceiveArrLsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len)
+{
+	for (u32 i = 0; i < len; i++)
+	{
+		arr[i] = SPI_u8TransceiveData(unitNumber, 0xFF);
+	}
+}
+
 /*	enables DMA request	*/
 inline void SPI_voidEnableDMA(
 	SPI_UnitNumber_t unitNumber, SPI_DMA_Request_t request)

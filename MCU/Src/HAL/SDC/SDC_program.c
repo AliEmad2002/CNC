@@ -17,47 +17,69 @@
 #include "GPIO_interface.h"
 
 /*	SELF	*/
+#include "SDC_Private.h"
 #include "SDC_interface.h"
 #include "SDC_CRC.h"
 
+
+/*******************************************************************************
+ * CRC calculation:
+ ******************************************************************************/
 /*
  * Check this:
  * http://www.rjhcoding.com/avrc-sd-interface-2.php
  * http://my-cool-projects.blogspot.com/2013/06/sd-card-crc-algorithm-explained-in.html
  * https://bits4device.wordpress.com/2017/12/16/sd-crc7-crc16-implementation/
  */
+/**
+ * Study notes about CRC calculation:
+ * 		-	Simply CRC is performing a modulo operation between two
+ * 			polynomials, data polynomial and generator polynomial.
+ *
+ * 		-	Polynomials are represented like the following examples:
+ * 				0b1101   == x^3 + x^2 + 1
+ * 				0b101001 == x^5 + x^3 + 1
+ *
+ * 		-	Binary polynomial division is very similar to binary numerical
+ * 			division, except that it uses successive XOR'ing instead of
+ * 			successive subtraction.
+ *
+ * 		-	let  :	D0 = D[0:7], D1 = D[8:15], D = D[0:15]
+ *		 			C1 = CRC(D1)
+ *
+ * 			then : CRC(D) = CRC((C1 << 1) ^ D0)
+ *
+ * 			TODO: ask eng: mohamed ali, why?
+ **/
 static u8 get_crc7(u8* arr, u32 len)
 {
-	/**
-	 * Study notes about CRC calculation:
-	 * 		-	Simply CRC is performing a modulo operation between two
-	 * 			polynomials, data polynomial and generator polynomial.
-	 *
-	 * 		-	Polynomials are represented like the following examples:
-	 * 				0b1101   == x^3 + x^2 + 1
-	 * 				0b101001 == x^5 + x^3 + 1
-	 *
-	 * 		-	Binary polynomial division is very similar to binary numerical
-	 * 			division, except that it uses successive XOR'ing instead of
-	 * 			successive subtraction.
-	 *
-	 * 		-	let  :	D0 = D[0:7], D1 = D[8:15], D = D[0:15]
-	 *		 			C1 = CRC(D1)
-	 *
-	 * 			then : CRC(D) = CRC((C1 << 1) ^ D0)
-	 *
-	 * 			TODO: ask eng: mohamed ali, why?
-	 **/
 	u8 c = crc7Table[0];
 
 	for (s32 i = (s32)len - 1; i >= 0; i--)
 	{
+		/*	TODO: Ask why	*/
 		c = crc7Table[(c << 1) ^ arr[i]];
 	}
 
 	return c;
 }
 
+static u16 get_crc16(u8* arr, u32 len)
+{
+	u16 c = crc16Table[0];
+
+	for (u32 i = 0; i < len; i++)
+	{
+		/*	TODO: Ask why	*/
+		c = (c<<8) ^ crc16Table[(u8)(c>>8) ^ arr[i]];
+	}
+
+	return c;
+}
+
+/*******************************************************************************
+ * Command sending and responses:
+ ******************************************************************************/
 static void send_command(SDC_t* sdc, u8 index, u32 arg)
 {
 	// create command frame:
@@ -77,6 +99,25 @@ static void send_command(SDC_t* sdc, u8 index, u32 arg)
 
 	// send it over SPI:
 	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, cmdFrame, 6);
+}
+
+static u8 get_rData(SDC_t* sdc, SDC_Data_Response_t* response)
+{
+	/*	get R	*/
+	u8* u8Response = (u8*)response;
+	*u8Response = SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF);
+
+	/*	check start and end bits	*/
+	if (response->startBit != 1 || response->endBit != 0)
+		return 0;
+
+	/*
+	 * wait for busy flag to be cleared (MISO pin is driven low as long as the busy
+	 * flag is set.
+	 */
+	while(SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF) == 0);
+
+	return 1;
 }
 
 /*
@@ -250,6 +291,39 @@ static void set_block_len(SDC_t* sdc, u32 len)
 	}
 }
 
+static void write_crc_enable(SDC_t* sdc, u8 crcEnable)
+{
+	SDC_R1_t r1;
+	u8 gotR1;
+
+	/*	Send CMD59 (Enable / Disable CRC)	*/
+	sdc->crcEnabled = crcEnable;
+	send_command(sdc, 59, crcEnable);
+
+	/*	get response (R1)	*/
+	gotR1 = get_r1(sdc, &r1);
+	if (!gotR1)
+	{
+		trace_printf("SD-card failed. No response");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+	if (
+		r1.addressErr	  	||
+		r1.cmdCrcErr  		||
+		r1.eraseSeqErr   	||
+		r1.illigalCmdErr 	||
+		r1.parameterErr
+	)
+	{
+		trace_printf("SD-card failed. error response");
+		u8 stop = 1;
+		__asm volatile ("bkpt 0");
+		while(stop);
+	}
+}
+
 /*
  * Following are the branches labeled on the initialization flow diagram, each
  * branch has a timeout of 1 second.
@@ -386,7 +460,8 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
 }
 
 void SDC_voidInitConnection(
-	SDC_t* sdc, SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
+	SDC_t* sdc, u8 crcEnable,
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
 {
 	SDC_R1_t r1;
 	SDC_R7_t r7;
@@ -478,11 +553,126 @@ void SDC_voidInitConnection(
 		/*	set block len to 512 bytes (CMD16)	*/
 		set_block_len(sdc, 512);
 	}
+
+	/*	Enable / Disable CRC	*/
+	write_crc_enable(sdc, crcEnable);
 }
 
+/*	prints block (debug only)	*/
+static void print_block(u8* block)
+{
+	trace_printf("0x");
+	for (s16 i = 511; i >= 0; i--)
+	{
+		trace_printf("%X", (s32)block[i]);
+	}
+}
 
+u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
+{
+	SDC_R1_t r1;
+	SDC_Data_Response_t rd;
 
+	u8 gotR1;
+	u8 gotRd;
 
+	/*	Send CMD24	*/
+	send_command(sdc, 24, blockNumber);
+
+	/*	Get R1 response	*/
+	gotR1 = get_r1(sdc, &r1);
+	if (!gotR1)
+		return 0;
+	if (
+		r1.addressErr	  	||
+		r1.cmdCrcErr  		||
+		r1.eraseSeqErr   	||
+		r1.illigalCmdErr 	||
+		r1.parameterErr
+	)
+		return 0;
+
+	/*	if CRC was enabled, calculate it for the block	*/
+	u16 crc = 0;
+	if (sdc->crcEnabled == 1)
+		crc = get_crc16(block, 512);
+
+	/*	wait for 1 SPI byte	*/
+	SPI_voidTransmitData(sdc->spiUnitNumber, 0xFF);
+
+	/**	send the data packet	**/
+	/*	send data token	*/
+	SPI_voidTransmitData(sdc->spiUnitNumber, 0b11111110);
+	/*	send data block	*/
+	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, block, 512);
+	/*	send CRC	*/
+	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, (u8*)&crc, 2);
+
+	/*	Get data response	*/
+	gotRd = get_rData(sdc, &rd);
+	if (!gotRd)
+		return 0;
+	if (
+		!rd.accepted		||
+		rd.crcErr	  		||
+		rd.wrtErr
+	)
+		return 0;
+
+	return 1;
+}
+
+u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
+{
+	SDC_R1_t r1;
+	u8 gotR1;
+
+	/*	Send CMD17	*/
+	send_command(sdc, 17, blockNumber);
+
+	/*	Get R1 response	*/
+	gotR1 = get_r1(sdc, &r1);
+	if (!gotR1)
+		return 0;
+	if (
+		r1.addressErr	  	||
+		r1.cmdCrcErr  		||
+		r1.eraseSeqErr   	||
+		r1.illigalCmdErr 	||
+		r1.parameterErr
+	)
+		return 0;
+
+	/*	wait for the data token (0b11111110) to be received, with a timeout of 1 second	*/
+	u64 startTime = STK_u64GetElapsedTicks();
+	while(1)
+	{
+		if (SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF) == 0b11111110)
+			break;
+
+		if (STK_u64GetElapsedTicks() - startTime >= 1000 * STK_TICKS_PER_MS)
+			return 0;
+	}
+
+	/*	Receive the data block	*/
+	SPI_voidReceiveArrLsFirst(sdc->spiUnitNumber, block, 512);
+
+	/*	Receive the CRC	*/
+	u16 crc;
+	SPI_voidReceiveArrMsFirst(sdc->spiUnitNumber, (u8*)&crc, 2);
+
+	//print_block(block);
+
+	/*	Check CRC (if enabled)	*/
+	if (sdc->crcEnabled)
+	{
+		u16 crcCalc = get_crc16(block, 512);
+		if (crcCalc != crc)
+			return 0;
+	}
+
+	return 1;
+}
 
 
 
