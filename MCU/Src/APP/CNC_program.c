@@ -70,6 +70,12 @@ void CNC_voidInit(CNC_t* CNC)
 	SDC_voidInitConnection(
 		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP);
 
+	SDC_u8OpenStream(&(CNC->stream), &(CNC->sdCard), "MYFILE.NC");
+
+	SDC_u8WriteStream(&(CNC->stream), 0, (u8*)"My name is Ali", strlen("My name is Ali"));
+
+	SDC_u8CloseStream(&(CNC->stream));
+
 	/*
 	 * relative positioning and auto leveling are initially turned off, to
 	 * activate them, user may command their respective commands.

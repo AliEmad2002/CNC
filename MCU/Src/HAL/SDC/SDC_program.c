@@ -10,6 +10,7 @@
 #include "Bit_Math.h"
 #include "Delay_interface.h"
 #include "diag/trace.h"
+#include <ctype.h>
 
 /*	MCAL	*/
 #include "STK_interface.h"
@@ -324,6 +325,9 @@ static void write_crc_enable(SDC_t* sdc, u8 crcEnable)
 	}
 }
 
+/*******************************************************************************
+ * Init:
+ ******************************************************************************/
 /*
  * Following are the branches labeled on the initialization flow diagram, each
  * branch has a timeout of 1 second.
@@ -472,7 +476,7 @@ void SDC_voidInitConnection(
 	sdc->spiUnitNumber = spiUnitNumber;
 	SPI_voidInit(
 		spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
-		SPI_FrameDirection_MSB_First, SPI_Prescaler_256, SPI_Mode_Master,
+		SPI_FrameDirection_MSB_First, SPI_Prescaler_2, SPI_Mode_Master,
 		SPI_ClockPolarity_0Idle, SPI_ClockPhase_CaptureFirst);
 
 	SPI_voidInitPins(spiUnitNumber, afioMap, 0, 1, 1);
@@ -485,9 +489,9 @@ void SDC_voidInitConnection(
 	GPIO_voidSetPinGpoPushPull(sdc->csPort, sdc->csPin);
 
 	/**	Initialization flow: (Diagram is at the directory: ../Inc/HAL/SDC)	**/
-	Delay_voidBlockingDelayMs(2);
-
 	GPIO_SET_PIN_HIGH(sdc->csPort, sdc->csPin);
+
+	Delay_voidBlockingDelayMs(2);
 
 	/*	>= 74 dummy clocks	*/
 	for (u8 i = 0; i < 10; i++)
@@ -558,6 +562,9 @@ void SDC_voidInitConnection(
 	write_crc_enable(sdc, crcEnable);
 }
 
+/*******************************************************************************
+ * Write / Read block:
+ ******************************************************************************/
 /*	prints block (debug only)	*/
 static void print_block(u8* block)
 {
@@ -673,6 +680,373 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 
 	return 1;
 }
+
+/*******************************************************************************
+ * Search:
+ ******************************************************************************/
+/*	Searches for an array of bytes in the whole card (debug only)	*/
+static s32 find_in_block(u8* block, u32 blockLen, u8* byteArr, u32 len)
+{
+	for (u32 i = 0; i < blockLen; i++)
+	{
+		u8 mismatch = 0;
+		for (u32 j = 0; j < len; j++)
+		{
+			if (block[i+j] != byteArr[j])
+			{
+				mismatch = 1;
+				break;
+			}
+		}
+		if (mismatch == 0)
+			return i;
+	}
+
+	return -1;
+}
+
+static void search_whole(SDC_t* sdc, u8* byteArr, u32 len, s32* blockIndex, s32* indexInBlock)
+{
+	for (u8 i = 0; i < 200; i++)
+		trace_printf("#");
+	trace_printf("\n");
+
+	u8 successfull;
+
+	/*	for every block in the SD-card	*/
+	for (u32 i = 0; i < 8388608; i++)
+	{
+		/*	read block	*/
+		successfull = SDC_u8ReadBlock(sdc, sdc->block, 0);
+		if (!successfull)
+		{
+			//__asm volatile ("bkpt 0");
+			//trace_printf("read failed. retrying\n");
+			i--;
+		}
+
+		/*	search in block	*/
+		*indexInBlock = find_in_block(sdc->block, 512, byteArr, len);
+		if (*indexInBlock != -1)
+		{
+			*blockIndex = i;
+			__asm volatile ("bkpt 0");
+			return;
+		}
+
+		//trace_printf("%d\n", i);
+
+		if (i % (83886 / 2) == 0)
+		{
+			//static s32 p = 0;
+			//trace_printf("%d\n", p++);
+			trace_printf("=");
+		}
+	}
+
+	*indexInBlock = -1;
+	*blockIndex = -1;
+}
+
+/*******************************************************************************
+ * Stream:
+ ******************************************************************************/
+static SDC_DirRecordType_t get_dir_record_type(SDC_DirData_t* rec)
+{
+	u8 u8Attrib = *((u8*)&(rec->attrib));
+
+	/*	Normal	*/
+	if (!rec->attrib.volumeId  &&
+		!rec->attrib.directory &&
+		!rec->attrib.unused0   &&
+		!rec->attrib.unused1
+	)
+		return SDC_DirRecordType_Normal;
+
+	/*	Long file name	*/
+	if (rec->attrib.system    &&
+		rec->attrib.volumeId  &&
+		rec->attrib.directory &&
+		rec->attrib.archive   &&
+		!rec->attrib.unused0  &&
+		!rec->attrib.unused1
+	)
+		return SDC_DirRecordType_LongFileName;
+
+	/*	unused	*/
+	if (rec->shortFileName[0] == 0xE5)
+		return SDC_DirRecordType_Unused;
+
+	/*	End of directory	*/
+	if (rec->shortFileName[0] == 0)
+		return SDC_DirRecordType_EndOfDir;
+
+	/*	Otherwise, unknown type	*/
+	return SDC_DirRecordType_Unknown;
+}
+
+/*
+ * Converts user written file name to a FAT32 understandable file name.
+ * Example:
+ * 		"file.nc" ==> "file    nc "
+ */
+static void get_in_file_name(char inFileName[11], char* fileName)
+{
+	/*	copy from first to the '.' or the end of "fileNme" if '.' does not exist	*/
+	s8 dotIndex = -1;
+	volatile u8 i = 0;
+	for (; ; i++)
+	{
+		if (fileName[i] == '.')
+		{
+			dotIndex = i;
+			break;
+		}
+
+		if (fileName[i] == '\0')
+			break;
+
+		inFileName[i] = toupper(fileName[i]);
+	}
+
+	/*	if '.' does not exist	*/
+	if (dotIndex == -1)
+	{
+		/*	fill rest of "inFileName" with spaces	*/
+		for (; i < 11; i++)
+			inFileName[i] = ' ';
+		/*	end function	*/
+		return;
+	}
+
+	/*	otherwise, if '.' exists, add spaces until last 3 bytes	*/
+	for (; i < 8; i++)
+		inFileName[i] = ' ';
+
+	/*	copy extension	*/
+	for (i = 0; i < 3; i++)
+	{
+		if (fileName[dotIndex + 1 + i] == '\0')
+			break;
+		inFileName[8 + i] = toupper(fileName[dotIndex + 1 + i]);
+	}
+
+	/*	fill rest of "inFileName" with spaces (some extensions are of 1 or two bytes only)	*/
+	for (; i < 3; i++)
+		inFileName[8 + i] = ' ';
+}
+
+/*
+ * Compares 11 bytes with 11 bytes
+ */
+static u8 are_equal_names(char* name1, char* name2)
+{
+	for (u8 i =0; i < 11; i++)
+	{
+		if (name1[i] != name2[i])
+			return 0;
+	}
+	return 1;
+}
+
+u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
+{
+	u8 successfull;
+	SDC_DirData_t* dirData;
+	volatile u8 found = 0;
+	char inFileName[11];
+	get_in_file_name(inFileName, fileName);
+
+	/*	Read zero-th sector (MBR)	*/
+	successfull = SDC_u8ReadBlock(sdc, sdc->block, 0);
+	if (!successfull)
+		return 0;
+
+	/*	In the partition table, search for the partition that uses FAT32	*/
+	SDC_Partition_Entry_t* partitionEntry;
+	for (u8 i = 0; i < 4; i++)
+	{
+		partitionEntry = (SDC_Partition_Entry_t*)&(sdc->block[446 + 16 * i]);
+		if (partitionEntry->typeCode == 0xB || partitionEntry->typeCode == 0xC)
+			break;
+	}
+
+	/*	Read volume ID sector of the partition (first sector in partition)	*/
+	u32 lbaBegin = partitionEntry->lbaBegin;
+	successfull = SDC_u8ReadBlock(sdc, sdc->block, lbaBegin);
+	if (!successfull)
+		return 0;
+
+	u16 bytesPerSector			= *(u16*)&(sdc->block[0x0B]);
+	u8 sectorsPerCluster		= *(u8 *)&(sdc->block[0x0D]);
+	u16 numberOfReservedSectors	= *(u16*)&(sdc->block[0x0E]);
+	u8 numberOfFats				= *(u8 *)&(sdc->block[0x10]);
+	u32 fatSize					= *(u32*)&(sdc->block[0x24]);
+	u32 rootDirFirstCluster		= *(u32*)&(sdc->block[0x2C]);
+	u16 signature				= *(u16*)&(sdc->block[0x1FE]);
+
+	/*	Check constant values (from "volume ID critical fields" table in the document)	*/
+	if (bytesPerSector != 512)
+		return 0;
+	if (numberOfFats != 2)
+		return 0;
+	if (signature != 0xAA55)
+		return 0;
+
+	/*	Get LBA of the first sector in root directory	*/
+	volatile u32 lbaFirstSector = lbaBegin + numberOfReservedSectors + numberOfFats * fatSize;
+	u32 lbaRootFirstSector = lbaFirstSector + (rootDirFirstCluster - 2) * sectorsPerCluster;
+	u32 lbaRootCurrentSector = lbaRootFirstSector;
+
+	while(1)	// as long as root directory is not yet ended:
+	{
+		for (u32 iSector = 0; iSector < sectorsPerCluster; iSector++)
+		{
+			/*	read "lbaRootCurrentSector"	*/
+			successfull = SDC_u8ReadBlock(sdc, sdc->block, lbaRootCurrentSector);
+			if (!successfull)
+				return 0;
+
+			/*	List all files in the current cluster and search for "fileName" among them	*/
+			for (u16 i = 0; i < 16; i++)
+			{
+				/*	get pointer to the i-th record	*/
+				dirData = (SDC_DirData_t*)&(sdc->block[32 * i]);
+				/*	get type of this record	*/
+				SDC_DirRecordType_t recType = get_dir_record_type(dirData);
+				/*	check for end of directory	*/
+				if (recType == SDC_DirRecordType_EndOfDir)
+					break;
+				/*	check for short file name	*/
+				if (recType != SDC_DirRecordType_Normal)
+					continue;
+				/*	if "dirData" record expresses a short named file, compare it with the given "fileName"	*/
+				if (are_equal_names(inFileName, dirData->shortFileName))
+				{
+					found = 1;
+					break;
+				}
+			}
+		}
+
+	}
+
+
+	/*	if file not found: TODO: create it	*/
+	if (!found)
+		return 0;
+
+	/*	store file size in stream object	*/
+	stream->sizeActual = dirData->fileSize;
+	stream->sizeOnSDC = dirData->fileSize;
+
+	/*	get LBA address of first cluster in the file	*/
+	u32 numberOfFirstClusterInFile =
+		(u32)dirData->firstClusterLow | ((u32)dirData->firstClusterHigh << 16);
+	u32 lbaFirstClusterInFile = lbaFirstSector + (numberOfFirstClusterInFile - 2) * sectorsPerCluster;
+	stream->fileBase = lbaFirstClusterInFile;
+
+	/*	read first sector of file's first cluster into stream object buffer	*/
+	successfull = SDC_u8ReadBlock(sdc, stream->buffer, lbaFirstClusterInFile);
+	if (!successfull)
+		return 0;
+	stream->bufferOffset = 0;
+
+	/*	stream opened	*/
+	return 1;
+}
+
+/*
+ * If the requested byte offset is outside stream's buffer, the buffer is saved
+ * to the SD-card, and the sector containing the requested byte offset is copied
+ * to stream's buffer.
+ *
+ * Returns 1 if successful, 0 otherwise.
+ */
+static u8 update_buffer(SD_Stream_t* stream, u32 offset)
+{
+	u8 successfull;
+
+	/*	calculate LBA address of the given "offset"	*/
+	u32 lbaOffset = offset / 512;
+
+	/*	if it is another LBA than that of available buffer	*/
+	if (lbaOffset != stream->bufferOffset)
+	{
+		/*	save the current buffer to SD-card	*/
+		successfull =
+			SDC_u8WriteBlock(stream->sdc, stream->buffer, stream->fileBase + stream->bufferOffset);
+		if (!successfull)
+			return 0;
+
+		/*	Read new buffer from SD-card	*/
+		successfull = SDC_u8ReadBlock(stream->sdc, stream->buffer, stream->fileBase + lbaOffset);
+		if (!successfull)
+			return 0;
+		stream->bufferOffset = lbaOffset;
+	}
+
+	return 1;
+}
+
+u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
+{
+	u8 successfull;
+
+	/*	update buffer if needed	*/
+	successfull = update_buffer(stream, offset);
+	if (!successfull)
+		return 0;
+
+	/*	Modulus "offset", so that it can be used to access "buffer"	*/
+	offset = offset % 512;
+
+	/*	Copy from "buffer" to "arr"	*/
+	for (u32 i = 0; i < len; i++)
+	{
+		arr[i] = stream->buffer[offset + i];
+	}
+
+	return 1;
+}
+
+u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
+{
+	u8 successfull;
+
+	/*	update buffer if needed	*/
+	successfull = update_buffer(stream, offset);
+	if (!successfull)
+		return 0;
+
+	/*	Modulus "offset", so that it can be used to access "buffer"	*/
+	offset = offset % 512;
+
+	/*	Copy from "arr" to "buffer"	*/
+	for (u32 i = 0; i < len; i++)
+	{
+		stream->buffer[offset + i] = arr[i];
+	}
+
+	return 1;
+}
+
+u8 SDC_u8CloseStream(SD_Stream_t* stream)
+{
+	u8 successfull;
+
+	/*	save the current buffer to SD-card	*/
+	successfull =
+		SDC_u8WriteBlock(stream->sdc, stream->buffer, stream->fileBase + stream->bufferOffset);
+	if (!successfull)
+		return 0;
+
+	return 1;
+}
+
+
+
+
 
 
 

@@ -61,6 +61,56 @@ typedef struct{
 	u8 endBit   : 1;
 }SDC_Data_Response_t;
 
+typedef struct{
+	u8 bootFlag;
+	u32 chsBegin : 24;
+	u8 typeCode;
+	u32 chsEnd : 24;
+	u32 lbaBegin;
+	u32 numberOfSectors;
+}SDC_Partition_Entry_t;
+
+typedef struct{
+	u8 readOnly  : 1;
+	u8 hidden    : 1;
+	u8 system    : 1;
+	u8 volumeId  : 1;
+	u8 directory : 1;
+	u8 archive   : 1;
+	u8 unused0   : 1;
+	u8 unused1   : 1;
+}SDC_DirAttrib_t;
+
+typedef struct{
+	char shortFileName[11];
+	SDC_DirAttrib_t attrib;
+	u32 reserved0[2];
+	u16 firstClusterHigh;
+	u16 reserved1;
+	u16 reserved2;
+	u16 firstClusterLow;
+	u32 fileSize;
+}SDC_DirData_t;
+
+typedef enum{
+	SDC_DirRecordType_Normal,
+	SDC_DirRecordType_LongFileName,
+	SDC_DirRecordType_Unused,
+	SDC_DirRecordType_EndOfDir,
+	SDC_DirRecordType_Unknown
+}SDC_DirRecordType_t;
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #endif /* INCLUDE_HAL_SDC_SDC_PRIVATE_H_ */

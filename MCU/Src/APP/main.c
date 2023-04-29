@@ -42,6 +42,8 @@
 #include "CNC_interface.h"
 #include "CNC_Init_MCAL.h"
 
+#include "SDC_Private.h"
+
 void steppers_test(void);
 
 static s32 mapArr[400];
@@ -50,8 +52,12 @@ CNC_t CNC;
 
 int main(void)
 {
+	//trace_printf("%d", sizeof(SDC_DirData_t));
+
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
+
+	Delay_voidBlockingDelayMs(5000);
 
 	/*	power stabilization and MCAL ready delay	*/
 	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);

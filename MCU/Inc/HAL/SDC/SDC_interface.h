@@ -27,10 +27,19 @@ typedef struct{
 	u8 csPort : 4;
 	SDC_Version_t ver;
 	u8 crcEnabled;
+	u8 block[512];
 }SDC_t;
 
+/*	Stream	*/
 typedef struct{
+	SDC_t* sdc;
 
+	u32 sizeOnSDC;		// in bytes.
+	u32 sizeActual;		// in bytes.
+
+	u32 fileBase;		// LBA address of first sector in the opened file.
+	u8 buffer[512];
+	u32 bufferOffset;	// offset of "buffer" from the sector of the opened file. unit is LBA.
 }SD_Stream_t;
 
 /*
@@ -56,14 +65,20 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber);
 /*
  * Opens file from the SD card on a stream object.
  * Returns 1 if successfully opened. 0 otherwise.
+ *
+ * TODO: So-Far this function can only access root directory files. Make it
+ * access files from any directory.
  */
-u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileDir);
+u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName);
 
 /*	reads array of bytes from stream object	*/
-void SDC_voidRead(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
+u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
 
 /*	writes array of bytes to stream object	*/
-void SDC_voidWrite(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
+u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
+
+/*	Closes / Saves stream	*/
+u8 SDC_u8CloseStream(SD_Stream_t* stream);
 
 /*	Reads next un-read line of an opened text (non-binary formatted) file	*/
 void SDC_voidNextLine(SD_Stream_t* stream, char* line);

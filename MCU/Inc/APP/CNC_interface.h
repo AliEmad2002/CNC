@@ -62,6 +62,7 @@ typedef struct
 	Probe_t probe;
 
 	SDC_t sdCard;
+	SD_Stream_t stream;
 }CNC_t;
 
 typedef enum{
