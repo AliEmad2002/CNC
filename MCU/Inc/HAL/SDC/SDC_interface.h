@@ -72,6 +72,8 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber);
 u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName);
 
 /*	reads array of bytes from stream object	*/
+/* TODO: add functions that get and set by reference (They are only guaranteed until next buffer update!)*/
+
 u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
 
 /*	writes array of bytes to stream object	*/
