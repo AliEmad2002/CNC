@@ -70,7 +70,17 @@ void CNC_voidInit(CNC_t* CNC)
 	SDC_voidInitConnection(
 		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP);
 
-	SDC_u8OpenStream(&(CNC->stream), &(CNC->sdCard), "MYFILE.NC");
+	if (!SDC_u8InitPartition(&(CNC->sdCard)))
+	{
+		__asm volatile ("bkpt 0");
+		while(1);
+	}
+
+	if (!SDC_u8OpenStream(&(CNC->stream), &(CNC->sdCard), "MYFILE.NC"))
+	{
+		__asm volatile ("bkpt 0");
+		while(1);
+	}
 
 	SDC_u8WriteStream(&(CNC->stream), 0, (u8*)"My name is Ali", strlen("My name is Ali"));
 

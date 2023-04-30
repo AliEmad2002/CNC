@@ -562,6 +562,55 @@ void SDC_voidInitConnection(
 	write_crc_enable(sdc, crcEnable);
 }
 
+u8 SDC_u8InitPartition(SDC_t* sdc)
+{
+	u8 successfull;
+
+	/*	Read zero-th sector (MBR)	*/
+	successfull = SDC_u8ReadBlock(sdc, sdc->block, 0);
+	if (!successfull)
+		return 0;
+
+	/*	In the partition table, search for the partition that uses FAT32	*/
+	SDC_Partition_Entry_t* partitionEntry;
+	for (u8 i = 0; i < 4; i++)
+	{
+		partitionEntry = (SDC_Partition_Entry_t*)&(sdc->block[446 + 16 * i]);
+		if (partitionEntry->typeCode == 0xB || partitionEntry->typeCode == 0xC)
+			break;
+	}
+
+	/*	Read volume ID sector of the partition (first sector in partition)	*/
+	u32 lbaBegin = partitionEntry->lbaBegin;
+	successfull = SDC_u8ReadBlock(sdc, sdc->block, lbaBegin);
+	if (!successfull)
+		return 0;
+
+	u16 bytesPerSector			= *(u16*)&(sdc->block[0x0B]);
+	sdc->sectorsPerCluster		= *(u8 *)&(sdc->block[0x0D]);
+	u16 numberOfReservedSectors	= *(u16*)&(sdc->block[0x0E]);
+	u8 numberOfFats				= *(u8 *)&(sdc->block[0x10]);
+	sdc->fat.sectorsPerFat		= *(u32*)&(sdc->block[0x24]);
+	u32 rootDirFirstCluster		= *(u32*)&(sdc->block[0x2C]);
+	u16 signature				= *(u16*)&(sdc->block[0x1FE]);
+
+	/*	Check constant values (from "volume ID critical fields" table in the document)	*/
+	if (bytesPerSector != 512)
+		return 0;
+	if (numberOfFats != 2)
+		return 0;
+	if (signature != 0xAA55)
+		return 0;
+
+	/*	Get LBA of the File Allocation Table of that partition	*/
+	sdc->fat.lba = lbaBegin + numberOfReservedSectors;
+
+	/*	Get LBA of the first cluster in root directory	*/
+	sdc->clustersBeginLba = sdc->fat.lba + numberOfFats * sdc->fat.sectorsPerFat;
+
+	return 1;
+}
+
 /*******************************************************************************
  * Write / Read block:
  ******************************************************************************/
@@ -849,6 +898,149 @@ static u8 are_equal_names(char* name1, char* name2)
 	return 1;
 }
 
+ALWAYS_INLINE_STATIC u32 get_cluster_lba(SDC_t* sdc, u32 clusterNumber)
+{
+	return sdc->clustersBeginLba + (clusterNumber - 2) * sdc->sectorsPerCluster;
+}
+
+/*
+ * Returns 0 if not found but containing directory has not yet ended.
+ * Returns 1 if found.
+ * Returns 2 if not found and containing directory has ended.
+ */
+static u8 find_dirData_in_current_sector(
+	SDC_t* sdc, char* inFileName, SDC_DirData_t** dirDataPP)
+{
+	/*	List all files in the current sector and search for "inFileName" among them	*/
+	for (u16 i = 0; i < 16; i++)
+	{
+		/*	get pointer to the i-th record	*/
+		*dirDataPP = (SDC_DirData_t*)&(sdc->block[32 * i]);
+		/*	get type of this record	*/
+		SDC_DirRecordType_t recType = get_dir_record_type(*dirDataPP);
+		/*	check for end of directory	*/
+		if (recType == SDC_DirRecordType_EndOfDir)
+			return 2;
+		/*	check for short file name	*/
+		if (recType != SDC_DirRecordType_Normal)
+			continue;
+		/*	if "dirData" record expresses a short named file, compare it with the given "fileName"	*/
+		if (are_equal_names(inFileName, (*dirDataPP)->shortFileName))
+			return 1;
+	}
+
+	return 0;
+}
+
+/*
+ * Returns 0 if not found but containing directory has not yet ended.
+ * Returns 1 if found.
+ * Returns 2 if not found and containing directory has ended.
+ */
+static u8 find_dirData_in_cluster(
+	SDC_t* sdc, char* inFileName, u32 clusterNumber, SDC_DirData_t** dirDataPP)
+{
+	u8 successfull;
+	u8 found;
+
+	/*	Get LBA of that cluster	*/
+	u32 clusterLba = get_cluster_lba(sdc, clusterNumber);
+
+	/*	For every sector in the cluster	*/
+	for (u8 iSector = 0; iSector < sdc->sectorsPerCluster; iSector++)
+	{
+		/*	Read that sector into the buffer	*/
+		successfull = SDC_u8ReadBlock(sdc, sdc->block, clusterLba + iSector);
+		if (!successfull)
+			return 0;
+
+		/*	Search in this sector	*/
+		found = find_dirData_in_current_sector(sdc, inFileName, dirDataPP);
+
+		/*	if not found but containing directory has not yet ended	*/
+		if (found == 0)
+			continue;
+
+		/*	if found	*/
+		if (found == 1)
+			return 1;
+
+		/*	if not found and containing directory has ended	*/
+		if (found == 2)
+			return 2;
+	}
+
+	/*	Cluster ended and file has not been found, and also, directory has not yet ended	*/
+	return 0;
+}
+
+static u32 get_next_cluster_number(SDC_t* sdc, u32 currentClusterNumber)
+{
+	u8 successfull;
+
+	/*	Get next cluster number by reading FAT's integer indexed by "currentClusterNumber"	*/
+	/*	Read FAT (File Allocation Table) sector containing that entry	*/
+	successfull = SDC_u8ReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
+	if (!successfull)
+		return 0;
+
+	SDC_NextClusterEntry_t nextClusterEntry =
+		((SDC_NextClusterEntry_t*)sdc->block)[currentClusterNumber % 128];
+
+	/*	if the next cluster entry is in a sector other than the one already read, read it	*/
+	if (nextClusterEntry.sectorNumber != currentClusterNumber / 128)
+	{
+		successfull = SDC_u8ReadBlock(sdc, sdc->block, sdc->fat.lba + nextClusterEntry.sectorNumber);
+		if (!successfull)
+			return 0;
+	}
+
+	/*	read data pointed to by the data entry	*/
+	u32 nextClusterNumber = ((u32*)sdc->block)[nextClusterEntry.indexInSector];
+
+	/*	if there's no next cluster	*/
+	if (nextClusterNumber >= 0xFFFFFFF8)
+		return 0xFFFFFFFF;
+
+	/*	clear top 4-bits	*/
+	nextClusterNumber = nextClusterNumber & 0xFFFFFFF0;
+
+	return nextClusterNumber;
+}
+
+/*
+ * Returns 0 if not found.
+ * Returns 1 if found.
+ */
+static u8 find_dirData_in_directory(
+	SDC_t* sdc, char* inFileName, u32 dirFirstClusterNumber, SDC_DirData_t** dirDataPP)
+{
+	u8 found;
+
+	/*	For every cluster in the directory	*/
+	u32 currentClusterNumber = dirFirstClusterNumber;
+	while(currentClusterNumber != 0xFFFFFFFF)
+	{
+		/*	Search in this cluster	*/
+		found = find_dirData_in_cluster(sdc, inFileName, currentClusterNumber, dirDataPP);
+
+		/*	if found	*/
+		if (found == 1)
+			return 1;
+
+		/*	if not found and containing directory has ended	*/
+		if (found == 2)
+			return 2;
+
+		/*	Otherwise, if not found but containing directory has not yet ended	*/
+		/*	get number of the next cluster	*/
+		currentClusterNumber = get_next_cluster_number(sdc, currentClusterNumber);
+	}
+
+	/*	if directory clusters ended and still file has not been found	*/
+	return 0;
+}
+
 u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 {
 	u8 successfull;
@@ -857,102 +1049,49 @@ u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 	char inFileName[11];
 	get_in_file_name(inFileName, fileName);
 
-	/*	Read zero-th sector (MBR)	*/
-	successfull = SDC_u8ReadBlock(sdc, sdc->block, 0);
-	if (!successfull)
-		return 0;
+	/*	Search for file's directory data record in the root directory	*/
+	found = find_dirData_in_directory(sdc, inFileName, 2, &dirData);
 
-	/*	In the partition table, search for the partition that uses FAT32	*/
-	SDC_Partition_Entry_t* partitionEntry;
-	for (u8 i = 0; i < 4; i++)
-	{
-		partitionEntry = (SDC_Partition_Entry_t*)&(sdc->block[446 + 16 * i]);
-		if (partitionEntry->typeCode == 0xB || partitionEntry->typeCode == 0xC)
-			break;
-	}
-
-	/*	Read volume ID sector of the partition (first sector in partition)	*/
-	u32 lbaBegin = partitionEntry->lbaBegin;
-	successfull = SDC_u8ReadBlock(sdc, sdc->block, lbaBegin);
-	if (!successfull)
-		return 0;
-
-	u16 bytesPerSector			= *(u16*)&(sdc->block[0x0B]);
-	u8 sectorsPerCluster		= *(u8 *)&(sdc->block[0x0D]);
-	u16 numberOfReservedSectors	= *(u16*)&(sdc->block[0x0E]);
-	u8 numberOfFats				= *(u8 *)&(sdc->block[0x10]);
-	u32 fatSize					= *(u32*)&(sdc->block[0x24]);
-	u32 rootDirFirstCluster		= *(u32*)&(sdc->block[0x2C]);
-	u16 signature				= *(u16*)&(sdc->block[0x1FE]);
-
-	/*	Check constant values (from "volume ID critical fields" table in the document)	*/
-	if (bytesPerSector != 512)
-		return 0;
-	if (numberOfFats != 2)
-		return 0;
-	if (signature != 0xAA55)
-		return 0;
-
-	/*	Get LBA of the first sector in root directory	*/
-	volatile u32 lbaFirstSector = lbaBegin + numberOfReservedSectors + numberOfFats * fatSize;
-	u32 lbaRootFirstSector = lbaFirstSector + (rootDirFirstCluster - 2) * sectorsPerCluster;
-	u32 lbaRootCurrentSector = lbaRootFirstSector;
-
-	while(1)	// as long as root directory is not yet ended:
-	{
-		for (u32 iSector = 0; iSector < sectorsPerCluster; iSector++)
-		{
-			/*	read "lbaRootCurrentSector"	*/
-			successfull = SDC_u8ReadBlock(sdc, sdc->block, lbaRootCurrentSector);
-			if (!successfull)
-				return 0;
-
-			/*	List all files in the current cluster and search for "fileName" among them	*/
-			for (u16 i = 0; i < 16; i++)
-			{
-				/*	get pointer to the i-th record	*/
-				dirData = (SDC_DirData_t*)&(sdc->block[32 * i]);
-				/*	get type of this record	*/
-				SDC_DirRecordType_t recType = get_dir_record_type(dirData);
-				/*	check for end of directory	*/
-				if (recType == SDC_DirRecordType_EndOfDir)
-					break;
-				/*	check for short file name	*/
-				if (recType != SDC_DirRecordType_Normal)
-					continue;
-				/*	if "dirData" record expresses a short named file, compare it with the given "fileName"	*/
-				if (are_equal_names(inFileName, dirData->shortFileName))
-				{
-					found = 1;
-					break;
-				}
-			}
-		}
-
-	}
-
-
-	/*	if file not found: TODO: create it	*/
+	/*	if not found (TODO: create it)	*/
 	if (!found)
 		return 0;
 
-	/*	store file size in stream object	*/
-	stream->sizeActual = dirData->fileSize;
-	stream->sizeOnSDC = dirData->fileSize;
+	/*	Get first cluster number of the found file	*/
+	stream->firstClusterNumber =
+		((u32)dirData->firstClusterHigh << 16) | (u32)dirData->firstClusterLow;
 
-	/*	get LBA address of first cluster in the file	*/
-	u32 numberOfFirstClusterInFile =
-		(u32)dirData->firstClusterLow | ((u32)dirData->firstClusterHigh << 16);
-	u32 lbaFirstClusterInFile = lbaFirstSector + (numberOfFirstClusterInFile - 2) * sectorsPerCluster;
-	stream->fileBase = lbaFirstClusterInFile;
+	/*	Get LBA of this cluster	*/
+	u32 lba = get_cluster_lba(sdc, stream->firstClusterNumber);
 
 	/*	read first sector of file's first cluster into stream object buffer	*/
-	successfull = SDC_u8ReadBlock(sdc, stream->buffer, lbaFirstClusterInFile);
+	successfull = SDC_u8ReadBlock(sdc, stream->buffer, lba);
 	if (!successfull)
 		return 0;
 	stream->bufferOffset = 0;
 
 	/*	stream opened	*/
+	return 1;
+}
+
+/*	Saves sector that is currently in buffer into the SD-card	*/
+static u8 save_current_buffer(SD_Stream_t* stream)
+{
+	u8 successfull;
+
+	/*	Get cluster number of the sector that is currently in the buffer	*/
+	u32 currentClusterNumber =
+		stream->firstClusterNumber + stream->bufferOffset / stream->sdc->sectorsPerCluster;
+
+	/*	Get LBA of the sector that is currently in the buffer	*/
+	u32 currentLba =
+		get_cluster_lba(stream->sdc, currentClusterNumber) +
+		stream->bufferOffset % stream->sdc->sectorsPerCluster;
+
+	/*	Write the current buffer to the SD-card	*/
+	successfull = SDC_u8WriteBlock(stream->sdc, stream->buffer, currentLba);
+	if (!successfull)
+		return 0;
+
 	return 1;
 }
 
@@ -967,15 +1106,12 @@ static u8 update_buffer(SD_Stream_t* stream, u32 offset)
 {
 	u8 successfull;
 
-	/*	calculate LBA address of the given "offset"	*/
-	u32 lbaOffset = offset / 512;
-
-	/*	if it is another LBA than that of available buffer	*/
-	if (lbaOffset != stream->bufferOffset)
+	/*	if the given offset is outside the sector currently in buffer	*/
+	u32 sectorsOffset = offset / 512;
+	if (sectorsOffset != stream->bufferOffset)
 	{
 		/*	save the current buffer to SD-card	*/
-		successfull =
-			SDC_u8WriteBlock(stream->sdc, stream->buffer, stream->fileBase + stream->bufferOffset);
+		successfull = save_current_buffer(stream);
 		if (!successfull)
 			return 0;
 

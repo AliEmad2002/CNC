@@ -20,14 +20,29 @@ typedef enum{
 	SDC_Version_1
 }SDC_Version_t;
 
+/*	File Allocation Table	*/
+typedef struct{
+	u32 lba;			  // LBA of the File Allocation Table.
+	u32 sectorsPerFat;	  // Number of sectors of the File Allocation Table.
+}SDC_FAT_t;
+
 /*	SD-Card	*/
 typedef struct{
 	SPI_UnitNumber_t spiUnitNumber;
 	u8 csPin  : 4;
 	u8 csPort : 4;
+
 	SDC_Version_t ver;
+
 	u8 crcEnabled;
+
 	u8 block[512];
+
+	SDC_FAT_t fat;
+
+	u32 clustersBeginLba; // LBA of first root directory cluster in SD-card's partition.
+
+	u8 sectorsPerCluster;
 }SDC_t;
 
 /*	Stream	*/
@@ -37,9 +52,9 @@ typedef struct{
 	u32 sizeOnSDC;		// in bytes.
 	u32 sizeActual;		// in bytes.
 
-	u32 fileBase;		// LBA address of first sector in the opened file.
+	u32 firstClusterNumber;	// First cluster number of the opened file.
 	u8 buffer[512];
-	u32 bufferOffset;	// offset of "buffer" from the sector of the opened file. unit is LBA.
+	u32 bufferOffset;	// offset of "buffer" from the sector of the opened file. unit is (sectors).
 }SD_Stream_t;
 
 /*
@@ -49,6 +64,14 @@ typedef struct{
 void SDC_voidInitConnection(
 	SDC_t* sdc, u8 crcEnable,
 	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap);
+
+/*
+ * Initializes SD-card's partition data. TTo be ready for "SD_Stream" use.
+ * (Assumes the card has only one partition. if more, it takes the first)
+ *
+ * Returns 1 if initialized successfully, 0 otherwise.
+ */
+u8 SDC_u8InitPartition(SDC_t* sdc);
 
 /*
  * Writes data block (512 bytes) in the SD-card.

@@ -100,7 +100,13 @@ typedef enum{
 	SDC_DirRecordType_Unknown
 }SDC_DirRecordType_t;
 
+typedef struct{
+	u32 indexInSector : 7;  // Index of the 32-bit integer in the sector (described next),
+							// which contain next cluster number.
 
+	u32 sectorNumber  : 25; // Number of the sector of the File Allocation
+							// Table (FAT) in which next cluster number is written.
+}SDC_NextClusterEntry_t;
 
 
 
