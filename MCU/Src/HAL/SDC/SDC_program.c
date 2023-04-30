@@ -104,9 +104,16 @@ static void send_command(SDC_t* sdc, u8 index, u32 arg)
 
 static u8 get_rData(SDC_t* sdc, SDC_Data_Response_t* response)
 {
-	/*	get R	*/
-	u8* u8Response = (u8*)response;
-	*u8Response = SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF);
+	volatile u8 data;
+	for (u8 i = 0; i < 8; i++)
+	{
+		data = SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF);
+		if (data != 0xFF)	// response start bit is received
+		{
+			*((u8*)response) = data;
+			break;
+		}
+	}
 
 	/*	check start and end bits	*/
 	if (response->startBit != 1 || response->endBit != 0)
@@ -476,7 +483,7 @@ void SDC_voidInitConnection(
 	sdc->spiUnitNumber = spiUnitNumber;
 	SPI_voidInit(
 		spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
-		SPI_FrameDirection_MSB_First, SPI_Prescaler_2, SPI_Mode_Master,
+		SPI_FrameDirection_MSB_First, SPI_Prescaler_256, SPI_Mode_Master,
 		SPI_ClockPolarity_0Idle, SPI_ClockPhase_CaptureFirst);
 
 	SPI_voidInitPins(spiUnitNumber, afioMap, 0, 1, 1);
@@ -487,6 +494,8 @@ void SDC_voidInitConnection(
 	sdc->csPin  = csPin % 16;
 	sdc->csPort = csPin / 16;
 	GPIO_voidSetPinGpoPushPull(sdc->csPort, sdc->csPin);
+
+	sdc->lbaRead = 0xFFFFFFFF;
 
 	/**	Initialization flow: (Diagram is at the directory: ../Inc/HAL/SDC)	**/
 	GPIO_SET_PIN_HIGH(sdc->csPort, sdc->csPin);
@@ -660,7 +669,7 @@ u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 	/*	send data token	*/
 	SPI_voidTransmitData(sdc->spiUnitNumber, 0b11111110);
 	/*	send data block	*/
-	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, block, 512);
+	SPI_voidTransmitArrLsFirst(sdc->spiUnitNumber, block, 512);
 	/*	send CRC	*/
 	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, (u8*)&crc, 2);
 
@@ -668,11 +677,7 @@ u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 	gotRd = get_rData(sdc, &rd);
 	if (!gotRd)
 		return 0;
-	if (
-		!rd.accepted		||
-		rd.crcErr	  		||
-		rd.wrtErr
-	)
+	if (rd.status != SDC_Data_Response_Status_Accepted)
 		return 0;
 
 	return 1;
@@ -682,6 +687,10 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 {
 	SDC_R1_t r1;
 	u8 gotR1;
+
+	/*	if the block requested is the one currently in SD-card's object buffer	*/
+	if (blockNumber == sdc->lbaRead)
+		return 1;
 
 	/*	Send CMD17	*/
 	send_command(sdc, 17, blockNumber);
@@ -717,8 +726,6 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 	u16 crc;
 	SPI_voidReceiveArrMsFirst(sdc->spiUnitNumber, (u8*)&crc, 2);
 
-	//print_block(block);
-
 	/*	Check CRC (if enabled)	*/
 	if (sdc->crcEnabled)
 	{
@@ -727,6 +734,7 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 			return 0;
 	}
 
+	sdc->lbaRead = blockNumber;
 	return 1;
 }
 
@@ -982,28 +990,21 @@ static u32 get_next_cluster_number(SDC_t* sdc, u32 currentClusterNumber)
 	/*	Read FAT (File Allocation Table) sector containing that entry	*/
 	successfull = SDC_u8ReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
 	if (!successfull)
-		return 0;
+		return 0xFFFFFFFF;
 
 	SDC_NextClusterEntry_t nextClusterEntry =
 		((SDC_NextClusterEntry_t*)sdc->block)[currentClusterNumber % 128];
 
-	/*	if the next cluster entry is in a sector other than the one already read, read it	*/
-	if (nextClusterEntry.sectorNumber != currentClusterNumber / 128)
-	{
-		successfull = SDC_u8ReadBlock(sdc, sdc->block, sdc->fat.lba + nextClusterEntry.sectorNumber);
-		if (!successfull)
-			return 0;
-	}
-
 	/*	read data pointed to by the data entry	*/
-	u32 nextClusterNumber = ((u32*)sdc->block)[nextClusterEntry.indexInSector];
+	u32 nextClusterNumber = nextClusterEntry.indexInSector;
 
 	/*	if there's no next cluster	*/
-	if (nextClusterNumber >= 0xFFFFFFF8)
+	u32 u32entry = ((u32*)sdc->block)[currentClusterNumber % 128];
+	if (u32entry >= 0xFFFFFFF8 || u32entry == 0x0FFFFFFF)
 		return 0xFFFFFFFF;
 
-	/*	clear top 4-bits	*/
-	nextClusterNumber = nextClusterNumber & 0xFFFFFFF0;
+	/*	clear upper 4-bits	*/
+	nextClusterNumber = nextClusterNumber & 0x0FFFFFFFF;
 
 	return nextClusterNumber;
 }
@@ -1041,6 +1042,21 @@ static u8 find_dirData_in_directory(
 	return 0;
 }
 
+/*	Gets cluster number of a cluster given its index, and first cluster number	*/
+static u32 get_cluster_number(SDC_t* sdc, u32 firstClusterNumber, u32 clusterIndex)
+{
+	u32 clusterNumber = firstClusterNumber;
+	for (u32 i = 0; i < clusterIndex; i++)
+	{
+		if (clusterNumber == 65)
+		{
+			__asm volatile ("bkpt 0");
+		}
+		clusterNumber = get_next_cluster_number(sdc, clusterNumber);
+	}
+	return clusterNumber;
+}
+
 u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 {
 	u8 successfull;
@@ -1049,12 +1065,18 @@ u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 	char inFileName[11];
 	get_in_file_name(inFileName, fileName);
 
+	stream->sdc = sdc;
+
 	/*	Search for file's directory data record in the root directory	*/
 	found = find_dirData_in_directory(sdc, inFileName, 2, &dirData);
 
 	/*	if not found (TODO: create it)	*/
 	if (!found)
 		return 0;
+
+	/*	Get size of the found file	*/
+	stream->sizeActual = dirData->fileSize;
+	stream->sizeOnSDC = dirData->fileSize;
 
 	/*	Get first cluster number of the found file	*/
 	stream->firstClusterNumber =
@@ -1076,21 +1098,53 @@ u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 /*	Saves sector that is currently in buffer into the SD-card	*/
 static u8 save_current_buffer(SD_Stream_t* stream)
 {
-	u8 successfull;
+	volatile u8 successfull;
 
-	/*	Get cluster number of the sector that is currently in the buffer	*/
-	u32 currentClusterNumber =
-		stream->firstClusterNumber + stream->bufferOffset / stream->sdc->sectorsPerCluster;
+	/*	Get cluster index of the sector to be buffered	*/
+	u32 clusterIndex = stream->bufferOffset / stream->sdc->sectorsPerCluster;
 
-	/*	Get LBA of the sector that is currently in the buffer	*/
-	u32 currentLba =
-		get_cluster_lba(stream->sdc, currentClusterNumber) +
-		stream->bufferOffset % stream->sdc->sectorsPerCluster;
+	/*	Get cluster number of this cluster index	*/
+	u32 clusterNumber = get_cluster_number(stream->sdc, stream->firstClusterNumber, clusterIndex);
+	if (clusterNumber == 0xFFFFFFFF)
+		return 0;
+
+	/*	Get LBA of the sector to be buffered	*/
+	u32 lba =
+		get_cluster_lba(stream->sdc, clusterNumber) +
+		stream->bufferOffset  % stream->sdc->sectorsPerCluster;
 
 	/*	Write the current buffer to the SD-card	*/
-	successfull = SDC_u8WriteBlock(stream->sdc, stream->buffer, currentLba);
+	successfull = SDC_u8WriteBlock(stream->sdc, stream->buffer, lba);
 	if (!successfull)
 		return 0;
+
+	return 1;
+}
+
+/*	Reads sector from SD-card to stream's buffer	*/
+static u8 read_sector(SD_Stream_t* stream, u32 sectorsOffset)
+{
+	u8 successfull;
+
+	/*	Get cluster index of the sector to be buffered	*/
+	u32 clusterIndex = sectorsOffset / stream->sdc->sectorsPerCluster;
+
+	/*	Get cluster number of this cluster index	*/
+	u32 clusterNumber = get_cluster_number(stream->sdc, stream->firstClusterNumber, clusterIndex);
+	if (clusterNumber == 0xFFFFFFFF)
+		return 0;
+
+	/*	Get LBA of the sector to be buffered	*/
+	u32 lba =
+		get_cluster_lba(stream->sdc, clusterNumber) +
+		sectorsOffset % stream->sdc->sectorsPerCluster;
+
+	/*	Read that sector	*/
+	successfull = SDC_u8ReadBlock(stream->sdc, stream->buffer, lba);
+	if (!successfull)
+		return 0;
+
+	stream->bufferOffset = sectorsOffset;
 
 	return 1;
 }
@@ -1116,10 +1170,9 @@ static u8 update_buffer(SD_Stream_t* stream, u32 offset)
 			return 0;
 
 		/*	Read new buffer from SD-card	*/
-		successfull = SDC_u8ReadBlock(stream->sdc, stream->buffer, stream->fileBase + lbaOffset);
+		successfull = read_sector(stream, sectorsOffset);
 		if (!successfull)
 			return 0;
-		stream->bufferOffset = lbaOffset;
 	}
 
 	return 1;
@@ -1148,6 +1201,7 @@ u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 
 u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 {
+	/*	TODO: if written with more than original size, update size field in the data record on the card	*/
 	u8 successfull;
 
 	/*	update buffer if needed	*/
@@ -1167,13 +1221,12 @@ u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 	return 1;
 }
 
-u8 SDC_u8CloseStream(SD_Stream_t* stream)
+u8 SDC_u8SaveStream(SD_Stream_t* stream)
 {
 	u8 successfull;
 
 	/*	save the current buffer to SD-card	*/
-	successfull =
-		SDC_u8WriteBlock(stream->sdc, stream->buffer, stream->fileBase + stream->bufferOffset);
+	successfull = save_current_buffer(stream);
 	if (!successfull)
 		return 0;
 

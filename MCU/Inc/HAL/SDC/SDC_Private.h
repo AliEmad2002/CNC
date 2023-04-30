@@ -55,11 +55,15 @@ typedef struct{
 
 typedef struct{
 	u8 startBit : 1;
-	u8 accepted : 1;
-	u8 crcErr   : 1;
-	u8 wrtErr   : 1;
+	u8 status   : 3;
 	u8 endBit   : 1;
 }SDC_Data_Response_t;
+
+typedef enum{
+	SDC_Data_Response_Status_Accepted = 0b010,
+	SDC_Data_Response_Status_CrcErr   = 0b101,
+	SDC_Data_Response_Status_WrtErr   = 0b110
+}SDC_Data_Response_Status_t;
 
 typedef struct{
 	u8 bootFlag;

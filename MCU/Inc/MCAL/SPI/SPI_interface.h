@@ -248,6 +248,12 @@ void SPI_voidTransmitData(SPI_UnitNumber_t unitNumber, u16 data);
 void SPI_voidTransmitArrMsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len);
 
 /*
+ * Sends an array of bytes, least significant byte is send first.
+ * (SPI 8-bit mode must be selected)
+ */
+void SPI_voidTransmitArrLsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len);
+
+/*
  * Receives an array of bytes, most significant byte is expected to be received first.
  * (SPI 8-bit mode must be selected)
  * (Sends 0xFF)

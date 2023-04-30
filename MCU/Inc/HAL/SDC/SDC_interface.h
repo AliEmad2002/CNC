@@ -37,6 +37,7 @@ typedef struct{
 	u8 crcEnabled;
 
 	u8 block[512];
+	u32 lbaRead; // LBA of the sector currently available in "block"
 
 	SDC_FAT_t fat;
 
@@ -89,8 +90,12 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber);
  * Opens file from the SD card on a stream object.
  * Returns 1 if successfully opened. 0 otherwise.
  *
- * TODO: So-Far this function can only access root directory files. Make it
- * access files from any directory.
+ * TODO:
+ * 		-	So-far, this driver can only access root directory files. Make it
+ * 			access files from any directory.
+ * 		-	So far, this driver can only open and modify already existing files.
+ * 		-	So far, this driver can not allocate new clusters to the opened file,
+ * 			so make sure it initially has enough allocated size.
  */
 u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName);
 
@@ -103,7 +108,7 @@ u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
 u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
 
 /*	Closes / Saves stream	*/
-u8 SDC_u8CloseStream(SD_Stream_t* stream);
+u8 SDC_u8SaveStream(SD_Stream_t* stream);
 
 /*	Reads next un-read line of an opened text (non-binary formatted) file	*/
 void SDC_voidNextLine(SD_Stream_t* stream, char* line);
