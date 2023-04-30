@@ -67,8 +67,12 @@ void CNC_voidInit(CNC_t* CNC)
 		SPINDLE_PWM_TIM_CHANNEL, SPINDLE_PWM_AFIO_MAP);
 		
 	/*	SD card	*/
-	SDC_voidInitConnection(
-		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP);
+	if (!SDC_u8InitConnection(
+		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_RST_PIN, SD_AFIO_MAP))
+	{
+		__asm volatile ("bkpt 0");
+		while(1);
+	}
 
 	if (!SDC_u8InitPartition(&(CNC->sdCard)))
 	{

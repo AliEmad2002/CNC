@@ -29,8 +29,12 @@ typedef struct{
 /*	SD-Card	*/
 typedef struct{
 	SPI_UnitNumber_t spiUnitNumber;
+
 	u8 csPin  : 4;
 	u8 csPort : 4;
+
+	u8 rstPin  : 4;
+	u8 rstPort : 4;
 
 	SDC_Version_t ver;
 
@@ -58,13 +62,27 @@ typedef struct{
 	u32 bufferOffset;	// offset of "buffer" from the sector of the opened file. unit is (sectors).
 }SD_Stream_t;
 
+/*	Hard resets the SD-card. (the card is temporarily turned off for a configured time period)	*/
+void SDC_voidHardReset(SDC_t* sdc);
+
+/**
+ * Following, all functions named starting by "keepTrying" would do the same functionality
+ * of their previous ones, except that these function would do the following loop infinitely:
+ * 		-	Try the function with a maximum of three chances of failure.
+ * 		-	If the function still fails three times, hard reset the SD-card.
+ **/
+
 /*
  * Initializes connection with the SD-card object.
  * (Notice that SysTick elapsed time counter MUST be enabled)
  */
-void SDC_voidInitConnection(
+u8 SDC_u8InitConnection(
 	SDC_t* sdc, u8 crcEnable,
-	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap);
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap);
+
+void SDC_voidKeepTryingInitConnection(
+	SDC_t* sdc, u8 crcEnable,
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap);
 
 /*
  * Initializes SD-card's partition data. TTo be ready for "SD_Stream" use.
@@ -74,17 +92,23 @@ void SDC_voidInitConnection(
  */
 u8 SDC_u8InitPartition(SDC_t* sdc);
 
+void SDC_voidKeepTryingInitPartition(SDC_t* sdc);
+
 /*
  * Writes data block (512 bytes) in the SD-card.
  * Returns 1 if written successfully, 0 otherwise.
  */
 u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber);
 
+void SDC_voidKeepTryingWriteBlock(SDC_t* sdc, u8* block, u32 blockNumber);
+
 /*
  * Reads data block (512 bytes) from the SD-card.
  * Returns 1 if read successfully, 0 otherwise.
  */
 u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber);
+
+void SDC_voidKeepTryingReadBlock(SDC_t* sdc, u8* block, u32 blockNumber);
 
 /*
  * Opens file from the SD card on a stream object.
@@ -99,16 +123,23 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber);
  */
 u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName);
 
+void SDC_voidKeepTryingOpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName);
+
 /*	reads array of bytes from stream object	*/
 /* TODO: add functions that get and set by reference (They are only guaranteed until next buffer update!)*/
-
 u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
+
+void SDC_voidKeepTryingReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
 
 /*	writes array of bytes to stream object	*/
 u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
 
+void SDC_voidKeepTryingWriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len);
+
 /*	Closes / Saves stream	*/
 u8 SDC_u8SaveStream(SD_Stream_t* stream);
+
+void SDC_voidKeepTryingSaveStream(SD_Stream_t* stream);
 
 /*	Reads next un-read line of an opened text (non-binary formatted) file	*/
 void SDC_voidNextLine(SD_Stream_t* stream, char* line);

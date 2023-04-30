@@ -73,6 +73,8 @@ ALWAYS_INLINE_STATIC u8 set_flag(u32 offset)
 
 u32 get_rand_unused_offset()
 {
+//	static u32 i = 0;
+//	return i++;
 	while(1)
 	{
 		u32 offset = ((u32)rand()) % 10240u;
@@ -81,27 +83,25 @@ u32 get_rand_unused_offset()
 	}
 }
 
+u32 numberOfFails = 0;
+u32 numberOfHS = 0;
+
 int main(void)
 {
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
 
-	Delay_voidBlockingDelayMs(5000);
+	//Delay_voidBlockingDelayMs(5000);
 
 	srand(0);
 
-	u8 successfull;
-
 	SDC_t sd;
-	SDC_voidInitConnection(&sd, 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
-	successfull = SDC_u8InitPartition(&sd);
-	if (!successfull)	__asm volatile ("bkpt 0");
+	SDC_voidKeepTryingInitConnection(&sd, 1, SPI_UnitNumber_1, SD_CS_PIN, SD_RST_PIN, SD_AFIO_MAP);
+	SDC_voidKeepTryingInitPartition(&sd);
 
 	SD_Stream_t s0, s1;
-	successfull = SDC_u8OpenStream(&s0, &sd, "S0.BIN");
-	if (!successfull)	__asm volatile ("bkpt 0");
-	successfull = SDC_u8OpenStream(&s1, &sd, "S1.BIN");
-	if (!successfull)	__asm volatile ("bkpt 0");
+	SDC_voidKeepTryingOpenStream(&s0, &sd, "S0.BIN");
+	SDC_voidKeepTryingOpenStream(&s1, &sd, "S1.BIN");
 
 	u8 byte;
 	u32 offset;
@@ -111,11 +111,8 @@ int main(void)
 	{
 		offset = get_rand_unused_offset();
 
-		while(SDC_u8ReadStream(&s0, offset, &byte, 1) == 0);
-		//if (!successfull)	__asm volatile ("bkpt 0");
-
-		while(SDC_u8WriteStream(&s1, offset, &byte, 1) == 0);
-		//if (!successfull)	__asm volatile ("bkpt 0");
+		SDC_voidKeepTryingReadStream(&s0, offset, &byte, 1);
+		SDC_voidKeepTryingWriteStream(&s1, offset, &byte, 1);
 
 		set_flag(offset);
 
@@ -128,13 +125,11 @@ int main(void)
 		}
 	}
 
-	while(SDC_u8SaveStream(&s0) == 0);
-	//if (!successfull)	__asm volatile ("bkpt 0");
-
-	while(SDC_u8SaveStream(&s1) == 0);
-	//if (!successfull)	__asm volatile ("bkpt 0");
+	SDC_voidKeepTryingSaveStream(&s0);
+	SDC_voidKeepTryingSaveStream(&s1);
 
 	trace_printf("Program done!\n");
+	trace_printf("numberOfFails = %d\n", numberOfFails);
 
 
 

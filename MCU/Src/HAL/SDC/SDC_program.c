@@ -212,7 +212,7 @@ static u8 get_r7(SDC_t* sdc, SDC_R7_t* response)
 	return 1;
 }
 
-static void send_acmd(SDC_t* sdc, u8 index, u32 arg)
+static u8 send_acmd(SDC_t* sdc, u8 index, u32 arg)
 {
 	/*	send leading CMD55	*/
 	send_command(sdc, 55, 0);
@@ -221,12 +221,7 @@ static void send_acmd(SDC_t* sdc, u8 index, u32 arg)
 	SDC_R1_t r1;
 	u8 gotR1 = get_r1(sdc, &r1);
 	if (!gotR1)
-	{
-		trace_printf("SD-card cmd55 failed. No response");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 	if (
 		r1.addressErr	  	||
 		r1.cmdCrcErr  		||
@@ -235,18 +230,15 @@ static void send_acmd(SDC_t* sdc, u8 index, u32 arg)
 		r1.parameterErr  	||
 		r1.inIdleState != 1
 	)
-	{
-		trace_printf("SD-card cmd55 failed. error response");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 
 	/*	Now send command	*/
 	send_command(sdc, index, arg);
+
+	return 1;
 }
 
-static SDC_OCR_t get_ocr(SDC_t* sdc)
+static u8 get_ocr(SDC_t* sdc, SDC_OCR_t* ocr)
 {
 	SDC_R3_t r3;
 	u8 gotR3;
@@ -257,17 +249,14 @@ static SDC_OCR_t get_ocr(SDC_t* sdc)
 	/*	get response (R3)	*/
 	gotR3 = get_r3(sdc, &r3);
 	if (!gotR3)
-	{
-		trace_printf("SD-card failed. Can't get OCR value");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 
-	return r3.ocr;
+	*ocr = r3.ocr;
+
+	return 1;
 }
 
-static void set_block_len(SDC_t* sdc, u32 len)
+static u8 set_block_len(SDC_t* sdc, u32 len)
 {
 	SDC_R1_t r1;
 	u8 gotR1;
@@ -277,12 +266,7 @@ static void set_block_len(SDC_t* sdc, u32 len)
 	/*	get response (R1)	*/
 	gotR1 = get_r1(sdc, &r1);
 	if (!gotR1)
-	{
-		trace_printf("SD-card failed. No response on setting block size");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 	if (
 		r1.addressErr	  	||
 		r1.cmdCrcErr  		||
@@ -290,15 +274,12 @@ static void set_block_len(SDC_t* sdc, u32 len)
 		r1.illigalCmdErr 	||
 		r1.parameterErr
 	)
-	{
-		trace_printf("SD-card failed. error response");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
+
+	return 1;
 }
 
-static void write_crc_enable(SDC_t* sdc, u8 crcEnable)
+static u8 write_crc_enable(SDC_t* sdc, u8 crcEnable)
 {
 	SDC_R1_t r1;
 	u8 gotR1;
@@ -310,12 +291,7 @@ static void write_crc_enable(SDC_t* sdc, u8 crcEnable)
 	/*	get response (R1)	*/
 	gotR1 = get_r1(sdc, &r1);
 	if (!gotR1)
-	{
-		trace_printf("SD-card failed. No response");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 	if (
 		r1.addressErr	  	||
 		r1.cmdCrcErr  		||
@@ -323,12 +299,9 @@ static void write_crc_enable(SDC_t* sdc, u8 crcEnable)
 		r1.illigalCmdErr 	||
 		r1.parameterErr
 	)
-	{
-		trace_printf("SD-card failed. error response");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
+
+	return 1;
 }
 
 /*******************************************************************************
@@ -381,13 +354,16 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_1(SDC_t* sdc)
 {
 	SDC_R1_t r1;
 	u8 gotR1;
+	u8 successfull;
 
 	u64 startTime = STK_u64GetElapsedTicks();
 
 	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * INIT_LOOP_TIMEOUT_MS)
 	{
 		/*	send ACMD41	*/
-		send_acmd(sdc, 41, 0);
+		successfull = send_acmd(sdc, 41, 0);
+		if (!successfull)
+			return SDC_Version_Unknown;
 
 		/*	get response (R1)	*/
 		gotR1 = get_r1(sdc, &r1);
@@ -418,19 +394,21 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
 {
 	SDC_R1_t r1;
 	u8 gotR1;
+	u8 successfull;
 
 	u64 startTime = STK_u64GetElapsedTicks();
 
 	while(STK_u64GetElapsedTicks() - startTime < STK_TICKS_PER_MS * INIT_LOOP_TIMEOUT_MS)
 	{
 		/*	send ACMD41	*/
-		send_acmd(sdc, 41, 1 << 30);
+		successfull = send_acmd(sdc, 41, 1 << 30);
+		if (!successfull)
+			return SDC_Version_Unknown;
 
 		/*	get response (R1)	*/
 		gotR1 = get_r1(sdc, &r1);
 		if (!gotR1)	// if no response:
 		{
-			trace_printf("exit1\n");
 			return SDC_Version_Unknown;
 		}
 
@@ -442,20 +420,21 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
 			r1.parameterErr
 		)
 		{
-			trace_printf("exit2\n");
 			return SDC_Version_Unknown;
 		}
 
 		if (r1.inIdleState == 1) // card needs more time:
 		{
-			Delay_voidBlockingDelayMs(100);
 			continue;
 		}
 
 		else	// card has received and processed the ACMD41 successfully
 		{
 			/*	read card's OCR	*/
-			SDC_OCR_t ocr = get_ocr(sdc);
+			SDC_OCR_t ocr;
+			successfull = get_ocr(sdc, &ocr);
+			if (!successfull)
+				return SDC_Version_Unknown;
 
 			if (ocr.ccs == 0)
 				return SDC_Version_2_ByteAddress;
@@ -465,35 +444,18 @@ ALWAYS_INLINE_STATIC SDC_Version_t init_branch_0(SDC_t* sdc)
 	}
 
 	// if timeout period passed:
-	trace_printf("exit3\n");
 	return SDC_Version_Unknown;
 }
 
-void SDC_voidInitConnection(
-	SDC_t* sdc, u8 crcEnable,
-	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
+static u8 init_flow(SDC_t* sdc)
 {
 	SDC_R1_t r1;
 	SDC_R7_t r7;
 	u8 gotR1;
 	u8 gotR7;
+	u8 successfull;
 
-	/**	Init SPI unit	**/
-	sdc->spiUnitNumber = spiUnitNumber;
-	SPI_voidInit(
-		spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
-		SPI_FrameDirection_MSB_First, SPI_Prescaler_16, SPI_Mode_Master,
-		SPI_ClockPolarity_0Idle, SPI_ClockPhase_CaptureFirst);
-
-	SPI_voidInitPins(spiUnitNumber, afioMap, 0, 1, 1);
-
-	SPI_ENABLE_PERIPHERAL(spiUnitNumber);
-
-	/**	Init CS pin	**/
-	sdc->csPin  = csPin % 16;
-	sdc->csPort = csPin / 16;
-	GPIO_voidSetPinGpoPushPull(sdc->csPort, sdc->csPin);
-
+	/*	Initially, no sectors have been read yet	*/
 	sdc->lbaRead = 0xFFFFFFFF;
 
 	/**	Initialization flow: (Diagram is at the directory: ../Inc/HAL/SDC)	**/
@@ -503,7 +465,7 @@ void SDC_voidInitConnection(
 
 	/*	>= 74 dummy clocks	*/
 	for (u8 i = 0; i < 10; i++)
-		SPI_voidTransmitData(spiUnitNumber, 0xFF);
+		SPI_voidTransmitData(sdc->spiUnitNumber, 0xFF);
 
 	/*	select chip	*/
 	GPIO_SET_PIN_LOW(sdc->csPort, sdc->csPin);
@@ -514,12 +476,7 @@ void SDC_voidInitConnection(
 	/*	get response (R1)	*/
 	gotR1 = get_r1(sdc, &r1);
 	if (!gotR1)
-	{
-		trace_printf("SD-card initialization failed. No response");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 	if (
 		r1.addressErr	  	||
 		r1.cmdCrcErr  		||
@@ -528,12 +485,7 @@ void SDC_voidInitConnection(
 		r1.parameterErr  	||
 		r1.inIdleState != 1
 	)
-	{
-		trace_printf("SD-card initialization failed. error response");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 
 	/*	send CMD8	*/
 	send_command(sdc, 8, 0x000001AA);
@@ -552,22 +504,83 @@ void SDC_voidInitConnection(
 
 	/*	if version is unknown	*/
 	if (sdc->ver == SDC_Version_Unknown)
-	{
-		trace_printf("SD-card initialization failed. Unknown version");
-		u8 stop = 1;
-		__asm volatile ("bkpt 0");
-		while(stop);
-	}
+		return 0;
 
 	/*	if version is known and other than "SDC_Version_2_BlockAddress"	*/
 	if (sdc->ver != SDC_Version_2_BlockAddress)
 	{
 		/*	set block len to 512 bytes (CMD16)	*/
-		set_block_len(sdc, 512);
+		successfull = set_block_len(sdc, 512);
+		if (!successfull)
+			return 0;
 	}
 
 	/*	Enable / Disable CRC	*/
-	write_crc_enable(sdc, crcEnable);
+	successfull = write_crc_enable(sdc, sdc->crcEnabled);
+	if (!successfull)
+		return 0;
+
+	return 1;
+}
+
+void SDC_voidHardReset(SDC_t* sdc)
+{
+	extern u32 numberOfHS;
+	numberOfHS++;
+	while(1)
+	{
+		GPIO_SET_PIN_HIGH(sdc->rstPort, sdc->rstPin);
+		Delay_voidBlockingDelayMs(10);
+		GPIO_SET_PIN_LOW(sdc->rstPort, sdc->rstPin);
+		Delay_voidBlockingDelayMs(10);
+
+		if (init_flow(sdc))
+			return;
+	}
+}
+
+u8 SDC_u8InitConnection(
+	SDC_t* sdc, u8 crcEnable,
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap)
+{
+	sdc->crcEnabled = crcEnable;
+
+	/**	Init SPI unit	**/
+	sdc->spiUnitNumber = spiUnitNumber;
+	SPI_voidInit(
+		spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
+		SPI_FrameDirection_MSB_First, SPI_Prescaler_2, SPI_Mode_Master,
+		SPI_ClockPolarity_0Idle, SPI_ClockPhase_CaptureFirst);
+
+	SPI_voidInitPins(spiUnitNumber, afioMap, 0, 1, 1);
+
+	SPI_ENABLE_PERIPHERAL(spiUnitNumber);
+
+	/**	Init CS pin	**/
+	sdc->csPin  = csPin % 16;
+	sdc->csPort = csPin / 16;
+	GPIO_voidSetPinGpoPushPull(sdc->csPort, sdc->csPin);
+
+	/**	Init reset pin	**/
+	sdc->rstPin  = rstPin % 16;
+	sdc->rstPort = rstPin / 16;
+	GPIO_voidSetPinGpoPushPull(sdc->rstPort, sdc->rstPin);
+	GPIO_SET_PIN_LOW(sdc->rstPort, sdc->rstPin);
+
+	/** Init flow	**/
+	return init_flow(sdc);
+}
+
+void SDC_voidKeepTryingInitConnection(
+	SDC_t* sdc, u8 crcEnable,
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap)
+{
+	u8 successfull =
+		SDC_u8InitConnection(sdc, crcEnable, spiUnitNumber, csPin, rstPin, afioMap);
+	if (successfull)
+		return;
+
+	SDC_voidHardReset(sdc);
 }
 
 u8 SDC_u8InitPartition(SDC_t* sdc)
@@ -617,6 +630,23 @@ u8 SDC_u8InitPartition(SDC_t* sdc)
 	sdc->clustersBeginLba = sdc->fat.lba + numberOfFats * sdc->fat.sectorsPerFat;
 
 	return 1;
+}
+
+void SDC_voidKeepTryingInitPartition(SDC_t* sdc)
+{
+	u8 successfull;
+
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			successfull = SDC_u8InitPartition(sdc);
+			if (successfull)
+				return;
+		}
+
+		SDC_voidHardReset(sdc);
+	}
 }
 
 /*******************************************************************************
@@ -682,6 +712,23 @@ u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 	return 1;
 }
 
+void SDC_voidKeepTryingWriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
+{
+	u8 successfull;
+
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			successfull = SDC_u8WriteBlock(sdc, block, blockNumber);
+			if (successfull)
+				return;
+		}
+
+		SDC_voidHardReset(sdc);
+	}
+}
+
 u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 {
 	SDC_R1_t r1;
@@ -735,6 +782,23 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 
 	sdc->lbaRead = blockNumber;
 	return 1;
+}
+
+void SDC_voidKeepTryingReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
+{
+	u8 successfull;
+
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			successfull = SDC_u8ReadBlock(sdc, block, blockNumber);
+			if (successfull)
+				return;
+		}
+
+		SDC_voidHardReset(sdc);
+	}
 }
 
 /*******************************************************************************
@@ -1094,6 +1158,23 @@ u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 	return 1;
 }
 
+void SDC_voidKeepTryingOpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
+{
+	u8 successfull;
+
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			successfull = SDC_u8OpenStream(stream, sdc, fileName);
+			if (successfull)
+				return;
+		}
+
+		SDC_voidHardReset(sdc);
+	}
+}
+
 /*	Saves sector that is currently in buffer into the SD-card	*/
 static u8 save_current_buffer(SD_Stream_t* stream)
 {
@@ -1198,6 +1279,25 @@ u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 	return 1;
 }
 
+void SDC_voidKeepTryingReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
+{
+	u8 successfull;
+
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			extern u32 numberOfFails;
+			numberOfFails++;
+			successfull = SDC_u8ReadStream(stream, offset, arr, len);
+			if (successfull)
+				return;
+		}
+
+		SDC_voidHardReset(stream->sdc);
+	}
+}
+
 u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 {
 	/*	TODO: if written with more than original size, update size field in the data record on the card	*/
@@ -1220,6 +1320,25 @@ u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 	return 1;
 }
 
+void SDC_voidKeepTryingWriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
+{
+	u8 successfull;
+
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			extern u32 numberOfFails;
+			numberOfFails++;
+			successfull = SDC_u8WriteStream(stream, offset, arr, len);
+			if (successfull)
+				return;
+		}
+
+		SDC_voidHardReset(stream->sdc);
+	}
+}
+
 u8 SDC_u8SaveStream(SD_Stream_t* stream)
 {
 	u8 successfull;
@@ -1232,7 +1351,22 @@ u8 SDC_u8SaveStream(SD_Stream_t* stream)
 	return 1;
 }
 
+void SDC_voidKeepTryingSaveStream(SD_Stream_t* stream)
+{
+	u8 successfull;
 
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			successfull = SDC_u8SaveStream(stream);
+			if (successfull)
+				return;
+		}
+
+		SDC_voidHardReset(stream->sdc);
+	}
+}
 
 
 
