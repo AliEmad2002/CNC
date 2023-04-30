@@ -76,41 +76,11 @@ void CNC_voidInit(CNC_t* CNC)
 		while(1);
 	}
 
-	if (!SDC_u8OpenStream(&(CNC->stream), &(CNC->sdCard), "MYFILE.NC"))
+	if (!SDC_u8OpenStream(&(CNC->stream), &(CNC->sdCard), "S0.BIN"))
 	{
 		__asm volatile ("bkpt 0");
 		while(1);
 	}
-
-	char* strc = "hello my name is ali\r\n";
-	if (!SDC_u8WriteStream(&(CNC->stream), 56551, (u8*)strc, strlen(strc)))
-	{
-		__asm volatile ("bkpt 0");
-		while(1);
-	}
-
-	if (!SDC_u8SaveStream(&(CNC->stream)))
-	{
-		__asm volatile ("bkpt 0");
-		while(1);
-	}
-
-	char str[20];
-	if (!SDC_u8ReadStream(&(CNC->stream), 0, (u8*)str, 20))
-	{
-		__asm volatile ("bkpt 0");
-		while(1);
-	}
-
-	if (!SDC_u8ReadStream(&(CNC->stream), 56551, (u8*)str, 20))
-	{
-		__asm volatile ("bkpt 0");
-		while(1);
-	}
-
-	for (u8 i = 0; i < 20; i++)
-		trace_printf("%c", str[i]);
-
 
 	/*
 	 * relative positioning and auto leveling are initially turned off, to

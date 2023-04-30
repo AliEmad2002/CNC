@@ -143,13 +143,12 @@ static u8 get_r1(SDC_t* sdc, SDC_R1_t* response)
 		data = SPI_u8TransceiveData(sdc->spiUnitNumber, 0xFF);
 		if (data != 0xFF)	// response start bit is received
 		{
-			if (GET_BIT(data, 7) == 0) // if MSB of "data" is the start bit
-				*((u8*)response) = data;
-
-			else
+			*((u8*)response) = data;
+			if (GET_BIT(data, 7) != 0) // if MSB of "data" is the start bit
 			{
-				trace_printf("start bit odd case has tto be implemented");
-				__asm volatile ("bkpt 0");
+				//trace_printf("start bit odd case has tto be implemented");
+				//__asm volatile ("bkpt 0");
+				return 0;
 			}
 
 //			else // otherwise, a bit in the middle of "data" is the start bit
@@ -483,7 +482,7 @@ void SDC_voidInitConnection(
 	sdc->spiUnitNumber = spiUnitNumber;
 	SPI_voidInit(
 		spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
-		SPI_FrameDirection_MSB_First, SPI_Prescaler_256, SPI_Mode_Master,
+		SPI_FrameDirection_MSB_First, SPI_Prescaler_16, SPI_Mode_Master,
 		SPI_ClockPolarity_0Idle, SPI_ClockPhase_CaptureFirst);
 
 	SPI_voidInitPins(spiUnitNumber, afioMap, 0, 1, 1);

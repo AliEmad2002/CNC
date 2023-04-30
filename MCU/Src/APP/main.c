@@ -49,45 +49,135 @@ void steppers_test(void);
 static s32 mapArr[400];
 CNC_t CNC;
 
+static u8 flagArr[1280] = {0};
+
+u8 all_flags_set()
+{
+	for (u16 i = 0; i < 1280; i++)
+	{
+		if (flagArr[i] != 0xFF)
+			return 0;
+	}
+	return 1;
+}
+
+ALWAYS_INLINE_STATIC u8 get_flag(u32 offset)
+{
+	return GET_BIT(flagArr[offset / 8], offset % 8);
+}
+
+ALWAYS_INLINE_STATIC u8 set_flag(u32 offset)
+{
+	return SET_BIT(flagArr[offset / 8], offset % 8);
+}
+
+u32 get_rand_unused_offset()
+{
+	while(1)
+	{
+		u32 offset = ((u32)rand()) % 10240u;
+		if (get_flag(offset) == 0)
+			return offset;
+	}
+}
 
 int main(void)
 {
-	//trace_printf("%d", sizeof(SDC_DirData_t));
-
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
 
 	Delay_voidBlockingDelayMs(5000);
 
-	/*	power stabilization and MCAL ready delay	*/
-	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
+	srand(0);
 
-	/*	init CNC object	*/
-	CNC.map.mapArr = mapArr;
-	CNC_voidInit(&CNC);
+	u8 successfull;
 
-	while(1)
+	SDC_t sd;
+	SDC_voidInitConnection(&sd, 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
+	successfull = SDC_u8InitPartition(&sd);
+	if (!successfull)	__asm volatile ("bkpt 0");
+
+	SD_Stream_t s0, s1;
+	successfull = SDC_u8OpenStream(&s0, &sd, "S0.BIN");
+	if (!successfull)	__asm volatile ("bkpt 0");
+	successfull = SDC_u8OpenStream(&s1, &sd, "S1.BIN");
+	if (!successfull)	__asm volatile ("bkpt 0");
+
+	u8 byte;
+	u32 offset;
+	u32 doneCount = 0;
+
+	while(!all_flags_set())
 	{
-		/*
-		 * Ask user if they want to do any prior to file operations.
-		 * For example:
-		 * 		-	level mapping.
-		 * 		-	setting parameters that not necessarily given in the G-code
-		 * 			file, like acceleration, maximum in-air (rapid) speed, etc...
-		 */
-		CNC_voidPriOperation(&CNC);
+		offset = get_rand_unused_offset();
 
-		/*	Let user choose G-code file to run from the SD-card, and run it	*/
-		CNC_voidRunGcodeFile(&CNC);
+		while(SDC_u8ReadStream(&s0, offset, &byte, 1) == 0);
+		//if (!successfull)	__asm volatile ("bkpt 0");
 
-		/*	Ask user if they want to do a new operation	*/
-		if (CNC_u8AskNew(&CNC))
-			continue;
-		else
-			break;
+		while(SDC_u8WriteStream(&s1, offset, &byte, 1) == 0);
+		//if (!successfull)	__asm volatile ("bkpt 0");
+
+		set_flag(offset);
+
+		doneCount++;
+
+		if (doneCount % 102 == 0)
+		{
+			static u32 i = 0;
+			trace_printf("%d\n", i++);
+		}
 	}
 
-	while(1);
+	while(SDC_u8SaveStream(&s0) == 0);
+	//if (!successfull)	__asm volatile ("bkpt 0");
+
+	while(SDC_u8SaveStream(&s1) == 0);
+	//if (!successfull)	__asm volatile ("bkpt 0");
+
+	trace_printf("Program done!\n");
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//	/*	power stabilization and MCAL ready delay	*/
+//	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
+//
+//	/*	init CNC object	*/
+//	CNC.map.mapArr = mapArr;
+//	CNC_voidInit(&CNC);
+//
+//	while(1)
+//	{
+//		/*
+//		 * Ask user if they want to do any prior to file operations.
+//		 * For example:
+//		 * 		-	level mapping.
+//		 * 		-	setting parameters that not necessarily given in the G-code
+//		 * 			file, like acceleration, maximum in-air (rapid) speed, etc...
+//		 */
+//		CNC_voidPriOperation(&CNC);
+//
+//		/*	Let user choose G-code file to run from the SD-card, and run it	*/
+//		CNC_voidRunGcodeFile(&CNC);
+//
+//		/*	Ask user if they want to do a new operation	*/
+//		if (CNC_u8AskNew(&CNC))
+//			continue;
+//		else
+//			break;
+//	}
+//
+//	while(1);
 }
 
 void steppers_test(void)
