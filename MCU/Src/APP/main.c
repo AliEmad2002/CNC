@@ -47,7 +47,7 @@ void steppers_test(void);
 static s32 mapArr[400];
 CNC_t CNC;
 
-int main(void)
+int v(void)
 {
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();

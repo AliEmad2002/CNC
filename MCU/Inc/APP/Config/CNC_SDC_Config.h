@@ -11,7 +11,6 @@
 
 #define SD_SPI_UNIT_NUMBER		SPI_UnitNumber_1
 #define SD_CS_PIN				GPIO_Pin_B0
-#define SD_RST_PIN				GPIO_Pin_B1
 #define SD_AFIO_MAP				0
 
 

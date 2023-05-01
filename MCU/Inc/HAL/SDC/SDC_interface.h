@@ -62,14 +62,11 @@ typedef struct{
 	u32 bufferOffset;	// offset of "buffer" from the sector of the opened file. unit is (sectors).
 }SD_Stream_t;
 
-/*	Hard resets the SD-card. (the card is temporarily turned off for a configured time period)	*/
-void SDC_voidHardReset(SDC_t* sdc);
-
 /**
  * Following, all functions named starting by "keepTrying" would do the same functionality
  * of their previous ones, except that these function would do the following loop infinitely:
  * 		-	Try the function with a maximum of three chances of failure.
- * 		-	If the function still fails three times, hard reset the SD-card.
+ * 		-	If the function still fails three times, reset the SD-card.
  **/
 
 /*
@@ -78,11 +75,11 @@ void SDC_voidHardReset(SDC_t* sdc);
  */
 u8 SDC_u8InitConnection(
 	SDC_t* sdc, u8 crcEnable,
-	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap);
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap);
 
 void SDC_voidKeepTryingInitConnection(
 	SDC_t* sdc, u8 crcEnable,
-	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap);
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap);
 
 /*
  * Initializes SD-card's partition data. TTo be ready for "SD_Stream" use.

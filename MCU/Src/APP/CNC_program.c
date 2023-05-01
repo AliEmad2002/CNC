@@ -68,7 +68,7 @@ void CNC_voidInit(CNC_t* CNC)
 		
 	/*	SD card	*/
 	if (!SDC_u8InitConnection(
-		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_RST_PIN, SD_AFIO_MAP))
+		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP))
 	{
 		__asm volatile ("bkpt 0");
 		while(1);

@@ -7,6 +7,7 @@
  *  Do not forget to un-comment the commented lines in functions:
  *  	-	SDC_voidKeepTryingWriteStream()
  *  	-	SDC_voidKeepTryingReadStream()
+ *  	-	SDC_voidHardReset()
  *
  *	SD-card must have two files "S0.BIN", "S1.BIN" in its root directory,
  *	each of 10KB, the test will try copying S0 to S1, but not copying bytes
@@ -14,7 +15,7 @@
  *	hence have a more powerful test.
  */
 
-#if 0
+#if 1
 
 /*	LIB	*/
 #include "Std_Types.h"
@@ -32,7 +33,6 @@
 
 #define SD_SPI_UNIT_NUMBER		SPI_UnitNumber_1
 #define SD_CS_PIN				GPIO_Pin_B0
-#define SD_RST_PIN				GPIO_Pin_B1
 #define SD_AFIO_MAP				0
 
 static u8 flagArr[1280] = {0};
@@ -94,6 +94,8 @@ void init_mcal()
 	STK_voidStartTickMeasure(STK_TickMeasureType_OverflowCount);
 }
 
+#include "GPIO_private.h"
+
 int main(void)
 {
 	/*	init MCAL	*/
@@ -102,7 +104,7 @@ int main(void)
 	srand(0);
 
 	SDC_t sd;
-	SDC_voidKeepTryingInitConnection(&sd, 1, SPI_UnitNumber_1, SD_CS_PIN, SD_RST_PIN, SD_AFIO_MAP);
+	SDC_voidKeepTryingInitConnection(&sd, 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
 	SDC_voidKeepTryingInitPartition(&sd);
 
 	SD_Stream_t s0, s1;
@@ -135,11 +137,12 @@ int main(void)
 	SDC_voidKeepTryingSaveStream(&s1);
 
 	trace_printf("Program done!\n");
-	trace_printf("numberOfFails = %d\n", numberOfFails);
+	trace_printf("numberOfFails      = %d\n", numberOfFails);
+	trace_printf("numberOfHardResets = %d\n", numberOfHS);
 
 	while(1);
 
 	return 0;
 }
 
-endif	/*	0	*/
+#endif	/*	0	*/

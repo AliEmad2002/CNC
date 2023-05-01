@@ -455,6 +455,8 @@ static u8 init_flow(SDC_t* sdc)
 	u8 gotR7;
 	u8 successfull;
 
+	SPI_voidSetBaudRatePrescaler(sdc->spiUnitNumber, SPI_Prescaler_256);
+
 	/*	Initially, no sectors have been read yet	*/
 	sdc->lbaRead = 0xFFFFFFFF;
 
@@ -520,36 +522,23 @@ static u8 init_flow(SDC_t* sdc)
 	if (!successfull)
 		return 0;
 
+	SPI_voidSetBaudRatePrescaler(sdc->spiUnitNumber, SPI_Prescaler_2);
+
 	return 1;
-}
-
-void SDC_voidHardReset(SDC_t* sdc)
-{
-	extern u32 numberOfHS;
-	numberOfHS++;
-	while(1)
-	{
-		GPIO_SET_PIN_LOW(sdc->rstPort, sdc->rstPin);
-		Delay_voidBlockingDelayMs(10);
-		GPIO_SET_PIN_HIGH(sdc->rstPort, sdc->rstPin);
-		Delay_voidBlockingDelayMs(10);
-
-		if (init_flow(sdc))
-			return;
-	}
 }
 
 u8 SDC_u8InitConnection(
 	SDC_t* sdc, u8 crcEnable,
-	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap)
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
 {
 	sdc->crcEnabled = crcEnable;
 
 	/**	Init SPI unit	**/
 	sdc->spiUnitNumber = spiUnitNumber;
+
 	SPI_voidInit(
-		spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
-		SPI_FrameDirection_MSB_First, SPI_Prescaler_2, SPI_Mode_Master,
+		sdc->spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
+		SPI_FrameDirection_MSB_First, SPI_Prescaler_256, SPI_Mode_Master,
 		SPI_ClockPolarity_0Idle, SPI_ClockPhase_CaptureFirst);
 
 	SPI_voidInitPins(spiUnitNumber, afioMap, 0, 1, 1);
@@ -561,26 +550,19 @@ u8 SDC_u8InitConnection(
 	sdc->csPort = csPin / 16;
 	GPIO_voidSetPinGpoPushPull(sdc->csPort, sdc->csPin);
 
-	/**	Init reset pin	**/
-	sdc->rstPin  = rstPin % 16;
-	sdc->rstPort = rstPin / 16;
-	GPIO_voidSetPinGpoPushPull(sdc->rstPort, sdc->rstPin);
-	GPIO_SET_PIN_HIGH(sdc->rstPort, sdc->rstPin);
-
 	/** Init flow	**/
 	return init_flow(sdc);
 }
 
 void SDC_voidKeepTryingInitConnection(
 	SDC_t* sdc, u8 crcEnable,
-	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, GPIO_Pin_t rstPin, u8 afioMap)
+	SPI_UnitNumber_t spiUnitNumber, GPIO_Pin_t csPin, u8 afioMap)
 {
-	u8 successfull =
-		SDC_u8InitConnection(sdc, crcEnable, spiUnitNumber, csPin, rstPin, afioMap);
+	u8 successfull = SDC_u8InitConnection(sdc, crcEnable, spiUnitNumber, csPin, afioMap);
 	if (successfull)
 		return;
 
-	SDC_voidHardReset(sdc);
+	while(!init_flow(sdc));
 }
 
 u8 SDC_u8InitPartition(SDC_t* sdc)
@@ -645,7 +627,7 @@ void SDC_voidKeepTryingInitPartition(SDC_t* sdc)
 				return;
 		}
 
-		SDC_voidHardReset(sdc);
+		while(!init_flow(sdc));
 	}
 }
 
@@ -725,7 +707,7 @@ void SDC_voidKeepTryingWriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 				return;
 		}
 
-		SDC_voidHardReset(sdc);
+		while(!init_flow(sdc));
 	}
 }
 
@@ -797,7 +779,7 @@ void SDC_voidKeepTryingReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 				return;
 		}
 
-		SDC_voidHardReset(sdc);
+		while(!init_flow(sdc));
 	}
 }
 
@@ -1171,7 +1153,7 @@ void SDC_voidKeepTryingOpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileNam
 				return;
 		}
 
-		SDC_voidHardReset(sdc);
+		while(!init_flow(sdc));
 	}
 }
 
@@ -1295,7 +1277,7 @@ void SDC_voidKeepTryingReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 
 			numberOfFails++;
 		}
 
-		SDC_voidHardReset(stream->sdc);
+		while(!init_flow(stream->sdc));
 	}
 }
 
@@ -1336,7 +1318,7 @@ void SDC_voidKeepTryingWriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32
 			numberOfFails++;
 		}
 
-		SDC_voidHardReset(stream->sdc);
+		while(!init_flow(stream->sdc));
 	}
 }
 
@@ -1365,7 +1347,7 @@ void SDC_voidKeepTryingSaveStream(SD_Stream_t* stream)
 				return;
 		}
 
-		SDC_voidHardReset(stream->sdc);
+		while(!init_flow(stream->sdc));
 	}
 }
 
