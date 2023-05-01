@@ -529,9 +529,9 @@ void SDC_voidHardReset(SDC_t* sdc)
 	numberOfHS++;
 	while(1)
 	{
-		GPIO_SET_PIN_HIGH(sdc->rstPort, sdc->rstPin);
-		Delay_voidBlockingDelayMs(10);
 		GPIO_SET_PIN_LOW(sdc->rstPort, sdc->rstPin);
+		Delay_voidBlockingDelayMs(10);
+		GPIO_SET_PIN_HIGH(sdc->rstPort, sdc->rstPin);
 		Delay_voidBlockingDelayMs(10);
 
 		if (init_flow(sdc))
@@ -565,7 +565,7 @@ u8 SDC_u8InitConnection(
 	sdc->rstPin  = rstPin % 16;
 	sdc->rstPort = rstPin / 16;
 	GPIO_voidSetPinGpoPushPull(sdc->rstPort, sdc->rstPin);
-	GPIO_SET_PIN_LOW(sdc->rstPort, sdc->rstPin);
+	GPIO_SET_PIN_HIGH(sdc->rstPort, sdc->rstPin);
 
 	/** Init flow	**/
 	return init_flow(sdc);
@@ -1287,11 +1287,12 @@ void SDC_voidKeepTryingReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 
 	{
 		for (u8 i = 0; i < 3; i++)
 		{
-			extern u32 numberOfFails;
-			numberOfFails++;
+
 			successfull = SDC_u8ReadStream(stream, offset, arr, len);
 			if (successfull)
 				return;
+			extern u32 numberOfFails;
+			numberOfFails++;
 		}
 
 		SDC_voidHardReset(stream->sdc);
@@ -1328,11 +1329,11 @@ void SDC_voidKeepTryingWriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32
 	{
 		for (u8 i = 0; i < 3; i++)
 		{
-			extern u32 numberOfFails;
-			numberOfFails++;
 			successfull = SDC_u8WriteStream(stream, offset, arr, len);
 			if (successfull)
 				return;
+			extern u32 numberOfFails;
+			numberOfFails++;
 		}
 
 		SDC_voidHardReset(stream->sdc);
