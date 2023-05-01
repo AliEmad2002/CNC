@@ -57,6 +57,8 @@ typedef struct{
 	u32 sizeOnSDC;		// in bytes.
 	u32 sizeActual;		// in bytes.
 
+	u32 reader;			// offset in bytes, of the last read byte.
+
 	u32 firstClusterNumber;	// First cluster number of the opened file.
 	u8 buffer[512];
 	u32 bufferOffset;	// offset of "buffer" from the sector of the opened file. unit is (sectors).
@@ -139,16 +141,13 @@ u8 SDC_u8SaveStream(SD_Stream_t* stream);
 void SDC_voidKeepTryingSaveStream(SD_Stream_t* stream);
 
 /*	Reads next un-read line of an opened text (non-binary formatted) file	*/
-void SDC_voidNextLine(SD_Stream_t* stream, char* line);
+void SDC_voidGetNextLine(SD_Stream_t* stream, char* line, u32 maxSize);
 
 /*	Resets line reader offset	*/
 void SDC_voidResetLineReader(SD_Stream_t* stream);
 
 /*	Checks if there's a next line	*/
 u8 SDC_u8IsThereNextLine(SD_Stream_t* stream);
-
-/*	saves changes made on stream object	*/
-void SDC_voidSave(SD_Stream_t* stream);
 
 
 

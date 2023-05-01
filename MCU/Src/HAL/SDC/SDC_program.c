@@ -1111,6 +1111,7 @@ u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 	get_in_file_name(inFileName, fileName);
 
 	stream->sdc = sdc;
+	stream->reader = 0;
 
 	/*	Search for file's directory data record in the root directory	*/
 	found = find_dirData_in_directory(sdc, inFileName, 2, &dirData);
@@ -1240,25 +1241,48 @@ static u8 update_buffer(SD_Stream_t* stream, u32 offset)
 	return 1;
 }
 
+static void keep_trying_update_buffer(SD_Stream_t* stream, u32 offset)
+{
+	u8 successfull;
+
+	while(1)
+	{
+		for (u8 i = 0; i < 3; i++)
+		{
+			successfull = update_buffer(stream, offset);
+			if (successfull)
+				return;
+		}
+
+		while(!init_flow(stream->sdc));
+	}
+}
+
 u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 {
 	u8 successfull;
 
-	/*	update buffer if needed	*/
-	successfull = update_buffer(stream, offset);
-	if (!successfull)
-		return 0;
-
-	/*	Modulus "offset", so that it can be used to access "buffer"	*/
-	offset = offset % 512;
-
-	/*	Copy from "buffer" to "arr"	*/
-	for (u32 i = 0; i < len; i++)
+	/*
+	 * Program will copy from "stream->buffer" and break when it reaches its end,
+	 * then, if the required length is not yet copied, an "update_buffer()" operation
+	 * will take place before continuing.
+	 */
+	u32 i = 0;
+	while(1)
 	{
-		arr[i] = stream->buffer[offset + i];
-	}
+		if (i == len)
+			return 1;
 
-	return 1;
+		if ((offset+i) % 512 == 0)
+		{
+			successfull = update_buffer(stream, offset+i);
+			if (!successfull)
+				return 0;
+		}
+
+		arr[i] = stream->buffer[(offset+i) % 512];
+		i++;
+	}
 }
 
 void SDC_voidKeepTryingReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
@@ -1286,21 +1310,27 @@ u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 	/*	TODO: if written with more than original size, update size field in the data record on the card	*/
 	u8 successfull;
 
-	/*	update buffer if needed	*/
-	successfull = update_buffer(stream, offset);
-	if (!successfull)
-		return 0;
-
-	/*	Modulus "offset", so that it can be used to access "buffer"	*/
-	offset = offset % 512;
-
-	/*	Copy from "arr" to "buffer"	*/
-	for (u32 i = 0; i < len; i++)
+	/*
+	 * Program will copy to "stream->buffer" and break when it reaches its end,
+	 * then, if the required length is not yet copied, an "update_buffer()" operation
+	 * will take place before continuing.
+	 */
+	u32 i = 0;
+	while(1)
 	{
-		stream->buffer[offset + i] = arr[i];
-	}
+		if (i == len)
+			return 1;
 
-	return 1;
+		if ((offset+i) % 512 == 0)
+		{
+			successfull = update_buffer(stream, offset+i);
+			if (!successfull)
+				return 0;
+		}
+
+		stream->buffer[(offset+i) % 512] = arr[i];
+		i++;
+	}
 }
 
 void SDC_voidKeepTryingWriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
@@ -1351,7 +1381,53 @@ void SDC_voidKeepTryingSaveStream(SD_Stream_t* stream)
 	}
 }
 
+void SDC_voidGetNextLine(SD_Stream_t* stream, char* line, u32 maxSize)
+{
+	u32 offset = stream->reader;
+	u8 i = 0;
+	while(1)
+	{
+		/*	if max size is reached, or stream file has ended	*/
+		if ( (i >= maxSize) || (offset+i >= stream->sizeActual) )
+		{
+			line[i] = '\0';
+			stream->reader = offset + i;
+			return;
+		}
 
+		/*	if going to start reading from next sector, update buffer	*/
+		if ((offset+i) % 512 == 0)
+			keep_trying_update_buffer(stream, offset+i);
+
+		/*	Copy byte	*/
+		line[i] = stream->buffer[(offset+i) % 512];
+
+		/*	check end of line	*/
+		if (line[i] == '\n')
+		{
+			if (i > 0)
+			{
+				if (line[i - 1] == '\r')	// remove unnecessary '\r'
+					line[i - 1] = '\0';
+			}
+			line[i] = '\0';
+			stream->reader = offset + i + 1;
+			return;
+		}
+
+		i++;
+	}
+}
+
+void SDC_voidResetLineReader(SD_Stream_t* stream)
+{
+	stream->reader = 0;
+}
+
+u8 SDC_u8IsThereNextLine(SD_Stream_t* stream)
+{
+	return (stream->reader < stream->sizeActual);
+}
 
 
 

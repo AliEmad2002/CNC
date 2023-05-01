@@ -147,18 +147,10 @@ void CNC_voidUseImperialUnits(CNC_t* CNC);
 
 void CNC_voidUseMetricUnits(CNC_t* CNC);
 
-/*
- * Asks user if they want to do any prior to file operations, and does it.
- * For example:
- * 		-	level mapping.
- * 		-	setting parameters that not necessarily given in the G-code
- * 			file, like acceleration, maximum in-air (rapid) speed, etc...
- */
- /*	TODO: use USB or debugger "printf()" and "scanf()", do HW UI later	*/
-void CNC_voidPriOperation(CNC_t* CNC);
+/*	makes manual movement	*/
+void CNC_voidMoveManual(CNC_t* CNC);
 
-/*	Lets user choose a G-code file and starts executing	*/
-/*	TODO: use USB or debugger "printf()" and "scanf()", do HW UI later	*/
+/*	starts executing "FILE.NC" G-code file	*/
 void CNC_voidRunGcodeFile(CNC_t* CNC);
 
 /*

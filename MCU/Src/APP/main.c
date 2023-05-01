@@ -61,16 +61,10 @@ int v(void)
 
 	while(1)
 	{
-		/*
-		 * Ask user if they want to do any prior to file operations.
-		 * For example:
-		 * 		-	level mapping.
-		 * 		-	setting parameters that not necessarily given in the G-code
-		 * 			file, like acceleration, maximum in-air (rapid) speed, etc...
-		 */
-		CNC_voidPriOperation(&CNC);
+		/*	Make manual movement	*/
+		CNC_voidMoveManual(&CNC);
 
-		/*	Let user choose G-code file to run from the SD-card, and run it	*/
+		/*	Run G-code file from the SD-card	*/
 		CNC_voidRunGcodeFile(&CNC);
 
 		/*	Ask user if they want to do a new operation	*/

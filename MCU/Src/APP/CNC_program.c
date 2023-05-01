@@ -19,6 +19,7 @@
 #include "Delay_interface.h"
 #include "Error_Handler_interface.h"
 #include "diag/trace.h"
+#include "Trajectory.h"
 
 /*	MCAL	*/
 #include "RCC_interface.h"
@@ -67,24 +68,8 @@ void CNC_voidInit(CNC_t* CNC)
 		SPINDLE_PWM_TIM_CHANNEL, SPINDLE_PWM_AFIO_MAP);
 		
 	/*	SD card	*/
-	if (!SDC_u8InitConnection(
-		&(CNC->sdCard), 1, SD_SPI_UNIT_NUMBER, SD_CS_PIN, SD_AFIO_MAP))
-	{
-		__asm volatile ("bkpt 0");
-		while(1);
-	}
-
-	if (!SDC_u8InitPartition(&(CNC->sdCard)))
-	{
-		__asm volatile ("bkpt 0");
-		while(1);
-	}
-
-	if (!SDC_u8OpenStream(&(CNC->stream), &(CNC->sdCard), "S0.BIN"))
-	{
-		__asm volatile ("bkpt 0");
-		while(1);
-	}
+	SDC_voidKeepTryingInitConnection(&(CNC->sdCard), 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
+	SDC_voidKeepTryingInitPartition(&(CNC->sdCard));
 
 	/*
 	 * relative positioning and auto leveling are initially turned off, to
@@ -1269,14 +1254,43 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 	}
 }
 
-void CNC_voidPriOperation(CNC_t* CNC)
+void CNC_voidMoveManual(CNC_t* CNC)
 {
 
 }
 
 void CNC_voidRunGcodeFile(CNC_t* CNC)
 {
+	/*	open input G-code file	*/
+	SD_Stream_t gcode;
+	SDC_voidKeepTryingOpenStream(&gcode, &(CNC->sdCard), "FILE.NC");
 
+	/*	create trajectory object	*/
+	Trajectory_t traj;
+	//Trajectory_voidInit(&traj, &(CNC->sdCard), "TRAJ.DAT");
+
+	/*	while G-code file still has un-read lines	*/
+	while(1)
+	{
+		/*
+		 * Read non trajectory code line (starting from the first un-read line),
+		 * parse and execute it
+		 */
+
+
+		/*	Read trajectory chunk (starting from the first un-read line)	*/
+
+
+		/*	Run this trajectory	*/
+	}
+}
+
+char get_choise(void)
+{
+	char buffer[16];
+	trace_printf("Choise: ");
+	trace_puts(buffer);
+	return buffer[0];
 }
 
 u8 CNC_u8AskNew(CNC_t* CNC)
