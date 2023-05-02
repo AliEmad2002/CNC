@@ -1259,29 +1259,34 @@ void CNC_voidMoveManual(CNC_t* CNC)
 
 }
 
+static void read_execute_non_traj_chunk(CNC_t* CNC)
+{
+
+}
+
+static void read_execute_traj_chunk(CNC_t* CNC)
+{
+	/*	create trajectory object	*/
+	Trajectory_t traj;
+	Trajectory_voidInit(&traj, &(CNC->sdCard), "TRAJ.DAT");
+}
+
 void CNC_voidRunGcodeFile(CNC_t* CNC)
 {
 	/*	open input G-code file	*/
-	SD_Stream_t gcode;
-	SDC_voidKeepTryingOpenStream(&gcode, &(CNC->sdCard), "FILE.NC");
-
-	/*	create trajectory object	*/
-	Trajectory_t traj;
-	//Trajectory_voidInit(&traj, &(CNC->sdCard), "TRAJ.DAT");
+	SDC_voidKeepTryingOpenStream(&(CNC->stream), &(CNC->sdCard), "FILE.NC");
 
 	/*	while G-code file still has un-read lines	*/
-	while(1)
+	while(SDC_u8IsThereNextLine(&(CNC->stream)))
 	{
 		/*
-		 * Read non trajectory code line (starting from the first un-read line),
-		 * parse and execute it
+		 * Read non trajectory code chunk (starting from the first un-read line),
+		 * parse and execute them:
 		 */
+		read_execute_non_traj_chunk(CNC);
 
-
-		/*	Read trajectory chunk (starting from the first un-read line)	*/
-
-
-		/*	Run this trajectory	*/
+		/*	Read and execute trajectory chunk (starting from the first un-read line)	*/
+		read_execute_traj_chunk(CNC);
 	}
 }
 
