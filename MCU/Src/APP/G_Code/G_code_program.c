@@ -101,7 +101,7 @@ void G_CODE_voidCopyAcceleration(G_Code_Msg_t* msgPtr)
 		/*	TODO: steps per unit  length is not the right way to do it	*/
 		if (msgPtr->paramChArr[count] == 'P')	// feed
 		{
-			CNC.config.feedAccel =
+			CNC.trajectory.feedAccel =
 				msgPtr->paramNumArr[count] *
 				(f32)CNC.config.stepsPerLengthUnit[0] / 3600.0f;
 		}
@@ -115,14 +115,14 @@ void G_CODE_voidCopyAcceleration(G_Code_Msg_t* msgPtr)
 }
 
 /*	TODO: 'F' parameter is the maximum feedrate, not feedrate itself	*/
-void G_Code_voidUpdateFeedRate(G_Code_Msg_t* msgPtr)
+void G_Code_voidUpdateFeedRateMax(G_Code_Msg_t* msgPtr)
 {
 	u8 count = msgPtr->paramCount;
 	while(count--)
 	{
 		if (msgPtr->paramChArr[count] == 'F')
 		{
-			CNC.feedrate =
+			CNC.trajectory.feedrateMax =
 				msgPtr->paramNumArr[count] *
 				(f32)CNC.config.stepsPerLengthUnit[0] / 60.0f;
 		}

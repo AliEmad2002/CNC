@@ -57,7 +57,9 @@ typedef struct{
 	u32 sizeOnSDC;		// in bytes.
 	u32 sizeActual;		// in bytes.
 
-	u32 reader;			// offset in bytes, of the last read byte.
+	u32 reader;			// start index of the first un-read line. (in bytes)
+	u32 lastReader;		// start index of the last read line. (in bytes), (used in going backwards).
+
 
 	u32 firstClusterNumber;	// First cluster number of the opened file.
 	u8 buffer[512];
@@ -149,6 +151,13 @@ void SDC_voidResetLineReader(SD_Stream_t* stream);
 /*	Checks if there's a next line	*/
 u8 SDC_u8IsThereNextLine(SD_Stream_t* stream);
 
+/*
+ * Sets "stream->reader"'s value to the start of previous line.
+ * Notice it can seek only once in a row!
+ *
+ * Returns 1 if successfully done, 0 otherwise (if seeking multiple lines backwards).
+ */
+u8 SDC_u8SeekReaderPrevLine(SD_Stream_t* stream);
 
 
 #endif /* INCLUDE_HAL_SDC_SDC_INTERFACE_H_ */

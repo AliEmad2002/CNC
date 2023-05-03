@@ -634,16 +634,6 @@ void SDC_voidKeepTryingInitPartition(SDC_t* sdc)
 /*******************************************************************************
  * Write / Read block:
  ******************************************************************************/
-/*	prints block (debug only)	*/
-static void print_block(u8* block)
-{
-	trace_printf("0x");
-	for (s16 i = 511; i >= 0; i--)
-	{
-		trace_printf("%X", (s32)block[i]);
-	}
-}
-
 u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 {
 	SDC_R1_t r1;
@@ -786,69 +776,69 @@ void SDC_voidKeepTryingReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 /*******************************************************************************
  * Search:
  ******************************************************************************/
-/*	Searches for an array of bytes in the whole card (debug only)	*/
-static s32 find_in_block(u8* block, u32 blockLen, u8* byteArr, u32 len)
-{
-	for (u32 i = 0; i < blockLen; i++)
-	{
-		u8 mismatch = 0;
-		for (u32 j = 0; j < len; j++)
-		{
-			if (block[i+j] != byteArr[j])
-			{
-				mismatch = 1;
-				break;
-			}
-		}
-		if (mismatch == 0)
-			return i;
-	}
-
-	return -1;
-}
-
-static void search_whole(SDC_t* sdc, u8* byteArr, u32 len, s32* blockIndex, s32* indexInBlock)
-{
-	for (u8 i = 0; i < 200; i++)
-		trace_printf("#");
-	trace_printf("\n");
-
-	u8 successfull;
-
-	/*	for every block in the SD-card	*/
-	for (u32 i = 0; i < 8388608; i++)
-	{
-		/*	read block	*/
-		successfull = SDC_u8ReadBlock(sdc, sdc->block, 0);
-		if (!successfull)
-		{
-			//__asm volatile ("bkpt 0");
-			//trace_printf("read failed. retrying\n");
-			i--;
-		}
-
-		/*	search in block	*/
-		*indexInBlock = find_in_block(sdc->block, 512, byteArr, len);
-		if (*indexInBlock != -1)
-		{
-			*blockIndex = i;
-			__asm volatile ("bkpt 0");
-			return;
-		}
-
-		//trace_printf("%d\n", i);
-
-		if (i % (83886 / 2) == 0)
-		{
-			//static s32 p = 0;
-			//trace_printf("%d\n", p++);
-			trace_printf("=");
-		}
-	}
-
-	*indexInBlock = -1;
-	*blockIndex = -1;
-}
+///*	Searches for an array of bytes in the whole card (debug only)	*/
+//static s32 find_in_block(u8* block, u32 blockLen, u8* byteArr, u32 len)
+//{
+//	for (u32 i = 0; i < blockLen; i++)
+//	{
+//		u8 mismatch = 0;
+//		for (u32 j = 0; j < len; j++)
+//		{
+//			if (block[i+j] != byteArr[j])
+//			{
+//				mismatch = 1;
+//				break;
+//			}
+//		}
+//		if (mismatch == 0)
+//			return i;
+//	}
+//
+//	return -1;
+//}
+//
+//static void search_whole(SDC_t* sdc, u8* byteArr, u32 len, s32* blockIndex, s32* indexInBlock)
+//{
+//	for (u8 i = 0; i < 200; i++)
+//		trace_printf("#");
+//	trace_printf("\n");
+//
+//	u8 successfull;
+//
+//	/*	for every block in the SD-card	*/
+//	for (u32 i = 0; i < 8388608; i++)
+//	{
+//		/*	read block	*/
+//		successfull = SDC_u8ReadBlock(sdc, sdc->block, 0);
+//		if (!successfull)
+//		{
+//			//__asm volatile ("bkpt 0");
+//			//trace_printf("read failed. retrying\n");
+//			i--;
+//		}
+//
+//		/*	search in block	*/
+//		*indexInBlock = find_in_block(sdc->block, 512, byteArr, len);
+//		if (*indexInBlock != -1)
+//		{
+//			*blockIndex = i;
+//			__asm volatile ("bkpt 0");
+//			return;
+//		}
+//
+//		//trace_printf("%d\n", i);
+//
+//		if (i % (83886 / 2) == 0)
+//		{
+//			//static s32 p = 0;
+//			//trace_printf("%d\n", p++);
+//			trace_printf("=");
+//		}
+//	}
+//
+//	*indexInBlock = -1;
+//	*blockIndex = -1;
+//}
 
 /*******************************************************************************
  * Stream:
@@ -1112,6 +1102,7 @@ u8 SDC_u8OpenStream(SD_Stream_t* stream, SDC_t* sdc, char* fileName)
 
 	stream->sdc = sdc;
 	stream->reader = 0;
+	stream->lastReader = 0;
 
 	/*	Search for file's directory data record in the root directory	*/
 	found = find_dirData_in_directory(sdc, inFileName, 2, &dirData);
@@ -1297,8 +1288,8 @@ void SDC_voidKeepTryingReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 
 			successfull = SDC_u8ReadStream(stream, offset, arr, len);
 			if (successfull)
 				return;
-			extern u32 numberOfFails;
-			numberOfFails++;
+//			extern u32 numberOfFails;
+//			numberOfFails++;
 		}
 
 		while(!init_flow(stream->sdc));
@@ -1344,8 +1335,8 @@ void SDC_voidKeepTryingWriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32
 			successfull = SDC_u8WriteStream(stream, offset, arr, len);
 			if (successfull)
 				return;
-			extern u32 numberOfFails;
-			numberOfFails++;
+//			extern u32 numberOfFails;
+//			numberOfFails++;
 		}
 
 		while(!init_flow(stream->sdc));
@@ -1391,6 +1382,7 @@ void SDC_voidGetNextLine(SD_Stream_t* stream, char* line, u32 maxSize)
 		if ( (i >= maxSize) || (offset+i >= stream->sizeActual) )
 		{
 			line[i] = '\0';
+			stream->lastReader = stream->reader;
 			stream->reader = offset + i;
 			return;
 		}
@@ -1411,6 +1403,7 @@ void SDC_voidGetNextLine(SD_Stream_t* stream, char* line, u32 maxSize)
 					line[i - 1] = '\0';
 			}
 			line[i] = '\0';
+			stream->lastReader = stream->reader;
 			stream->reader = offset + i + 1;
 			return;
 		}
@@ -1422,6 +1415,7 @@ void SDC_voidGetNextLine(SD_Stream_t* stream, char* line, u32 maxSize)
 void SDC_voidResetLineReader(SD_Stream_t* stream)
 {
 	stream->reader = 0;
+	stream->lastReader = 0;
 }
 
 u8 SDC_u8IsThereNextLine(SD_Stream_t* stream)
@@ -1429,7 +1423,16 @@ u8 SDC_u8IsThereNextLine(SD_Stream_t* stream)
 	return (stream->reader < stream->sizeActual);
 }
 
+u8 SDC_u8SeekReaderPrevLine(SD_Stream_t* stream)
+{
+	/*	if this is the second seek in a row	*/
+	if (stream->reader == stream->lastReader)
+		return 0;
 
+	/*	Otherwise	*/
+	stream->reader = stream->lastReader;
+	return 1;
+}
 
 
 

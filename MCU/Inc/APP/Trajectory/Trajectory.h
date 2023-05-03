@@ -20,22 +20,42 @@ typedef struct{
 typedef struct{
 	SD_Stream_t stream;
 	u32 numberOfPoints;
-
-	u32 vMax;  // maximum speed.
-	u32 accel; // acceleration.
+	u32 feedAccel;
+	u32 feedrateMax;
 }Trajectory_t;
 
-void Trajectory_voidInit(Trajectory_t* traj, SDC_t* sdc, char* tempFileName);
-
-void Trajectory_voidSetVmax(Trajectory_t* traj, u32 v);
-void Trajectory_voidSetAcceleration(Trajectory_t* traj, u32 a);
+/*
+ * Returns point that is at a given index in trajectory object.
+ * If index is invalid, it returns an all-zero point.
+ */
+void Trajectory_voidGetPointAt(Trajectory_t* traj, u32 index, Trajectory_Point_t* p);
 
 /*
- * flowchart of this function:
- * https://github.com/AliEmad2002/CNC/issues/7#issuecomment-1518841274
+ * Sets point that is at a given index in trajectory object.
+ * If index is invalid, it does nothing.
  */
-void Trajectory_voidPlanTrajectory(Trajectory_t* traj);
+void Trajectory_voidSetPointAt(Trajectory_t* traj, u32 index, Trajectory_Point_t* p);
 
+/*
+ * Resets trajectory pointers.
+ * First point of any trajectory is machines current point.
+ */
+void Trajectory_voidReset(Trajectory_t* traj, Trajectory_Point_t* pFirst);
 
+/*
+ * Adds new point at the end of trajectory object. speed of this point is not calculated,
+ * it will be calculated when "Trajectory_voidPlan()" is used.
+ */
+void Trajectory_voidAddPoint(Trajectory_t* traj, Trajectory_Point_t* p);
+
+/*
+ * Plans trajectory based on its points, maximum speed and acceleration.
+ * Notice that the first available point in "traj" (if any) must have its speed "v"
+ * set to its actual value.
+ */
+void Trajectory_voidPlan(Trajectory_t* traj);
+
+/*	Prints trajectory points on debugger	*/
+void Trajectory_voidPrint(Trajectory_t* traj);
 
 #endif /* INCLUDE_APP_TRAJECTORY_TRAJECTORY_H_ */

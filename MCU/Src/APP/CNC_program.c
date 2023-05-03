@@ -35,6 +35,190 @@
 
 static u64 ticksPerSecond;
 
+/*******************************************************************************
+ * Static (private) functions:
+ ******************************************************************************/
+ALWAYS_INLINE_STATIC u8 is_traj_line(char* line)
+{
+	if (
+		line[0] == 'G'		&&
+		line[1] == '0'		&&
+		line[2] == '1'		&&
+		line[3] == ' '		&&
+		line[4] != 'F'
+	)
+		return 1;
+
+	if (
+		line[0] == 'G'		&&
+		line[1] == '1'		&&
+		line[2] == ' '		&&
+		line[3] != 'F'
+	)
+		return 1;
+
+	return 0;
+}
+
+/*	Parses and executes the line string available in "CNC->lineStr"	*/
+ALWAYS_INLINE_STATIC void parse_execute_line(CNC_t* CNC)
+{
+	G_Code_Msg_t msg;
+	b8 parseSuccess = G_Code_b8ParseLine(&msg, CNC->lineStr);
+
+	/*	if parsing failed, skip this line (comment or empty line)	*/
+	if (!parseSuccess)
+	{
+		trace_printf("Could not parse G-code line:\n");
+		trace_printf("%s\n", CNC->lineStr);
+		return;
+	}
+
+	/*	Execute	*/
+	CNC_voidExecute(CNC, &msg);
+}
+
+static void read_execute_non_traj_chunk(CNC_t* CNC)
+{
+	u8 isTraj;
+
+	/*	while G-code file still has un-read lines	*/
+	while(SDC_u8IsThereNextLine(&(CNC->gcodeFile)))
+	{
+		/*	read line	*/
+		SDC_voidGetNextLine(&(CNC->gcodeFile), CNC->lineStr, MAX_STR_LEN);
+
+		/*	check if it is trajectory related or not	*/
+		isTraj = is_traj_line(CNC->lineStr);
+
+		/*	if not, execute it	*/
+		if (!isTraj)
+		{
+			parse_execute_line(CNC);
+		}
+
+		/*	otherwise, set "stream->reader" back to first of this last read line, and return	*/
+		else
+		{
+			(void)SDC_u8SeekReaderPrevLine(&(CNC->gcodeFile));
+			return;
+		}
+	}
+}
+
+static void get_first_intersection_with_level_grid(
+	CNC_t* CNC,
+	Trajectory_Point_t* p0, Trajectory_Point_t* p1, Trajectory_Point_t* pInter)
+{
+
+}
+
+static void move_traj_segment(CNC_t* CNC, Trajectory_Point_t* pi, Trajectory_Point_t* pf)
+{
+	Trajectory_Point_t pInterGrid0 = *pi;
+	Trajectory_Point_t pInterGrid1;
+	get_first_intersection_with_level_grid(CNC, pi, pf, &pInterGrid1);
+
+
+}
+
+static void execute_traj(CNC_t* CNC)
+{
+	Trajectory_Point_t a, b;
+
+	for (u32 i = 0; i < CNC->trajectory.numberOfPoints - 1; i++)
+	{
+		Trajectory_voidGetPointAt(&(CNC->trajectory), i    , &a);
+		Trajectory_voidGetPointAt(&(CNC->trajectory), i + 1, &b);
+		move_traj_segment(CNC, a, b);
+	}
+}
+
+static void get_point_from_msg(CNC_t* CNC, Trajectory_Point_t *p, G_Code_Msg_t* msg)
+{
+	/**
+	 * Based on "CNC->config", last added point in "CNC->trajectory", and the just
+	 * parsed line ("msg" object), set x, y, z of the trajectory point "p"
+	 **/
+	/*	Copy previous point in trajectory into this point "p"	*/
+	Trajectory_voidGetPointAt(&(CNC->trajectory), CNC->trajectory.numberOfPoints - 1, p);
+
+	/*	Edit only values of new received axis	*/
+	u8 count = msg->paramCount;
+	while(count--)
+	{
+		u8 pointIndex = msg->paramChArr[count] - 'X';
+		((s32*)p)[pointIndex] =
+			msg->paramNumArr[count] * (f32)CNC->config.stepsPerLengthUnit[pointIndex];
+	}
+}
+
+static void read_execute_traj_chunk(CNC_t* CNC)
+{
+	b8 parseSuccess;
+	u8 isTraj;
+	Trajectory_Point_t p;
+	G_Code_Msg_t msg;
+
+	/*	Get machines current position (initial point of this new trajectory)	*/
+	Trajectory_Point_t pFirst = {
+		.x = CNC->stepperArr[0].currentPos,
+		.y = CNC->stepperArr[1].currentPos,
+		.z = CNC->stepperArr[2].currentPos,
+		.v = CNC->speedCurrent
+	};
+
+	/*	reset reading pointers in trajectory object	*/
+	Trajectory_voidReset(&(CNC->trajectory), &pFirst);
+
+	/*	while G-code file still has un-read lines	*/
+	while(SDC_u8IsThereNextLine(&(CNC->gcodeFile)))
+	{
+		/*	read line	*/
+		SDC_voidGetNextLine(&(CNC->gcodeFile), CNC->lineStr, MAX_STR_LEN);
+
+		/*	check if it is trajectory related or not	*/
+		isTraj = is_traj_line(CNC->lineStr);
+
+		/*	if it is	*/
+		if (isTraj)
+		{
+			/*	parse line	*/
+			parseSuccess = G_Code_b8ParseLine(&msg, CNC->lineStr);
+
+			/*	if parsing failed, skip this line (comment or empty line)	*/
+			if (!parseSuccess)
+			{
+				trace_printf("Could not parse G-code line:\n");
+				trace_printf("%s\n", CNC->lineStr);
+				continue;
+			}
+
+			/*	Otherwise, copy new point	*/
+			get_point_from_msg(CNC, &p, &msg);
+
+			/*	Add point "p" to the trajectory object	*/
+			Trajectory_voidAddPoint(&(CNC->trajectory), &p);
+		}
+
+		/*	otherwise, set "stream->reader" back to first of this last read line, and break	*/
+		else
+		{
+			(void)SDC_u8SeekReaderPrevLine(&(CNC->gcodeFile));
+			break;
+		}
+	}
+
+	/*	Plan the read trajectory	*/
+	Trajectory_voidPlan(&(CNC->trajectory));
+
+	/*	Execute it	*/
+	execute_traj(CNC);
+}
+
+/*******************************************************************************
+ * Interface functions:
+ ******************************************************************************/
 void CNC_voidInit(CNC_t* CNC)
 {
 	/*	probe	*/
@@ -71,6 +255,15 @@ void CNC_voidInit(CNC_t* CNC)
 	SDC_voidKeepTryingInitConnection(&(CNC->sdCard), 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
 	SDC_voidKeepTryingInitPartition(&(CNC->sdCard));
 
+	/*	G-code file	*/
+	SDC_voidKeepTryingOpenStream(&(CNC->gcodeFile), &(CNC->sdCard), "FILE.NC");
+
+	/*	Trajectory RFS	*/
+	CNC->trajectory.numberOfPoints = 0;
+	SDC_voidKeepTryingOpenStream(&(CNC->trajectory.stream), &(CNC->sdCard), "TRAJ.RFS");
+	Trajectory_Point_t p = {0, 0, 0, 0};
+	Trajectory_voidReset(&(CNC->trajectory), &p);
+
 	/*
 	 * relative positioning and auto leveling are initially turned off, to
 	 * activate them, user may command their respective commands.
@@ -99,19 +292,12 @@ void CNC_voidInit(CNC_t* CNC)
 	ticksPerSecond = STK_u32GetTicksPerSecond();
 }
 
-/*
- * allows the user to change the current position of the tool in memory,
- * usually used for debugging
- */
 void CNC_voidExecuteSoftwareSetPosition(CNC_t* CNC)
 {
 	for (u8 i = 0; i < 3; i++)
 		CNC->stepperArr[i].currentPos = CNC->point[i];
 }
 
-/*
- * takes action on parsed messages
- */
 void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 {
 	if (msgPtr->codeClass == 'G')
@@ -120,13 +306,23 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 		{
 		case G_CODE_rapidMovement:
 			G_Code_voidCopyPoint(msgPtr);
-			CNC_voidExecuteMovement(CNC, CNC_MovementType_rapid);
+			//CNC_voidExecuteMovement(CNC, CNC_MovementType_rapid);
+			CNC_voidMove3Axis(
+				CNC,
+				CNC->point[0] - CNC->stepperArr[0].currentPos,
+				CNC->point[1] - CNC->stepperArr[1].currentPos,
+				CNC->point[2] - CNC->stepperArr[2].currentPos,
+				CNC->speedCurrent, 0,
+				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 			break;
 
 		case G_CODE_feedMovement:
-			G_Code_voidCopyPoint(msgPtr);
-			G_Code_voidUpdateFeedRate(msgPtr);
-			CNC_voidExecuteMovement(CNC, CNC_MovementType_feed);
+			/*
+			 * It is guaranteed in code flow, that this "G_CODE_feedMovement" won't
+			 * be executed in this function unless it has only the 'F' parameter.
+			 */
+			G_Code_voidUpdateFeedRateMax(msgPtr);
+			//CNC_voidExecuteMovement(CNC, CNC_MovementType_feed);
 			break;
 
 		case G_CODE_imperialUnits:
@@ -189,7 +385,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			break;
 
 		case G_CODE_setMaxFeedrate:
-			CNC->config.feedrateMax =
+			CNC->trajectory.feedrateMax =
 				msgPtr->paramNumArr[0] * (f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
 
 			/*	TODO: make this G-code editable	*/
@@ -215,174 +411,167 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 	}
 }
 
-/*
- *	called by "CNC_voidExecute()" when movement is commanded.
- */
-void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
-{
-	/*	prepare moving parameters	*/
-	if (CNC->config.relativePosEnabled == 0)
-	{
-		CNC->point[X] -= CNC->stepperArr[X].currentPos;
-		CNC->point[Y] -= CNC->stepperArr[Y].currentPos;
-	}
-	
-	u32 speed1 = CNC->speedCurrent;
-	u32 speed2;
-	u32 speedMax;
-	u32 acceleration;
-	
-	if (movementType == CNC_MovementType_rapid)
-	{
-		speed2 = 0;
-		speedMax = CNC->config.rapidSpeedMax;
-		CNC->speedCurrent = 0;
-		acceleration = CNC->config.rapidAccel;
-	}
-	else	// if (movementType == CNC_MOVEMENTTYPE_feed)
-	{
-		speed2 = CNC->feedrate;
-		speedMax = CNC->config.feedrateMax;
-		if (speed2 > speedMax)
-			speedMax = speed2;
-			
-		CNC->speedCurrent = speed2;
-		acceleration = CNC->config.feedAccel;
-	}
-	
-	/*	move	*/
-	if (CNC->config.autoLevelingEnabled == 0)
-	{
-		if (CNC->config.relativePosEnabled == 0)
-			CNC->point[Z] -= CNC->stepperArr[Z].currentPos;
-		
-		CNC_voidMove3Axis(
-			CNC,
-			CNC->point[X], CNC->point[Y], CNC->point[Z],
-			speed1, speed2, speedMax, acceleration
-			);
-		return;
-	}
-	
-	/*	if auto leveling is enabled	*/
-	s32 zAbs =
-		CNC->point[Z] +
-		LevelMap_s32GetDepthAt(&(CNC->map),
-		CNC->stepperArr[X].currentPos, CNC->stepperArr[Y].currentPos);
-	s32 zSteps = zAbs - CNC->stepperArr[Z].currentPos;
-	
-	if (movementType == CNC_MovementType_rapid)
-	{
-		/*
-		 * no need to auto level along the movement. (to avoid high speed
-		 * movement scattering)
-		 */
-		CNC_voidMove3Axis(
-			CNC,
-			CNC->point[X], CNC->point[Y], zSteps,
-			speed1, speed2, speedMax, acceleration
-			);
-		return;
-	}
-	
-	/*	make the z displacement first	*/
-	CNC_voidMove3Axis(
-		CNC, 0 ,0, zSteps, speed1, speed2, speedMax, acceleration);
+//void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
+//{
+//	/*	prepare moving parameters	*/
+//	if (CNC->config.relativePosEnabled == 0)
+//	{
+//		CNC->point[X] -= CNC->stepperArr[X].currentPos;
+//		CNC->point[Y] -= CNC->stepperArr[Y].currentPos;
+//	}
+//
+//	u32 speed1 = CNC->speedCurrent;
+//	u32 speed2;
+//	u32 speedMax;
+//	u32 acceleration;
+//
+//	if (movementType == CNC_MovementType_rapid)
+//	{
+//		speed2 = 0;
+//		speedMax = CNC->config.rapidSpeedMax;
+//		CNC->speedCurrent = 0;
+//		acceleration = CNC->config.rapidAccel;
+//	}
+//	else	// if (movementType == CNC_MOVEMENTTYPE_feed)
+//	{
+//		speed2 = CNC->feedrate;
+//		speedMax = CNC->config.feedrateMax;
+//		if (speed2 > speedMax)
+//			speedMax = speed2;
+//
+//		CNC->speedCurrent = speed2;
+//		acceleration = CNC->config.feedAccel;
+//	}
+//
+//	/*	move	*/
+//	if (CNC->config.autoLevelingEnabled == 0)
+//	{
+//		if (CNC->config.relativePosEnabled == 0)
+//			CNC->point[Z] -= CNC->stepperArr[Z].currentPos;
+//
+//		CNC_voidMove3Axis(
+//			CNC,
+//			CNC->point[X], CNC->point[Y], CNC->point[Z],
+//			speed1, speed2, speedMax, acceleration
+//			);
+//		return;
+//	}
+//
+//	/*	if auto leveling is enabled	*/
+//	s32 zAbs =
+//		CNC->point[Z] +
+//		LevelMap_s32GetDepthAt(&(CNC->map),
+//		CNC->stepperArr[X].currentPos, CNC->stepperArr[Y].currentPos);
+//	s32 zSteps = zAbs - CNC->stepperArr[Z].currentPos;
+//
+//	if (movementType == CNC_MovementType_rapid)
+//	{
+//		/*
+//		 * no need to auto level along the movement. (to avoid high speed
+//		 * movement scattering)
+//		 */
+//		CNC_voidMove3Axis(
+//			CNC,
+//			CNC->point[X], CNC->point[Y], zSteps,
+//			speed1, speed2, speedMax, acceleration
+//			);
+//		return;
+//	}
+//
+//	/*	make the z displacement first	*/
+//	CNC_voidMove3Axis(
+//		CNC, 0 ,0, zSteps, speed1, speed2, speedMax, acceleration);
+//
+//	s32 dx, dy;
+//
+//	s32 xMoved = 0;
+//	s32 yMoved = 0;
+//
+//	s32* largestMovedPtr;
+//
+//	/**	TODO: Optimize the following	**/
+//	if (labs(CNC->point[X]) > labs(CNC->point[Y]))
+//	{
+//		dx =
+//			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[X]) /
+//			AL_GRID_TRIMMER;
+//
+//		dy = (s32)((s64)dx * (s64)CNC->point[Y] / (s64)CNC->point[X]);
+//
+//		/*
+//		 * if yDisplacement was very very small relative to dx, dy would be
+//		 * calculated zero, resulting in an infinite loop in the following,
+//		 * so correct it and make yDisplacement.
+//		 */
+//		if (dy == 0		&&		CNC->point[Y] != 0)
+//			dy = CNC->point[Y];
+//
+//		largestMovedPtr = &xMoved;
+//	}
+//	else
+//	{
+//		dy =
+//			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[Y]) /
+//			AL_GRID_TRIMMER;
+//
+//		dx = (s32)((s64)dy * (s64)CNC->point[X] / (s64)CNC->point[Y]);
+//
+//		if (dx == 0		&&		CNC->point[X] != 0)
+//			dx = CNC->point[X];
+//
+//		largestMovedPtr = &yMoved;
+//	}
+//
+//	u32 speed2Trim = speed1;
+//	u32 speedMaxTrim = (speed2Trim > CNC->speedCurrent) ?
+//		speed2Trim : CNC->speedCurrent;
+//
+//	while (
+//			labs(xMoved) < labs(CNC->point[X])	||
+//			labs(yMoved) < labs(CNC->point[Y])
+//		)
+//	{
+//		if (labs(xMoved + dx) >= labs(CNC->point[X]))
+//			dx = CNC->point[X] - xMoved;
+//
+//		if (labs(yMoved + dy) >= labs(CNC->point[Y]))
+//			dy = CNC->point[Y] - yMoved;
+//
+//		// make the wanted z-axis material-bit distance:
+//		zAbs =
+//			CNC->point[Z] +
+//			LevelMap_s32GetDepthAt(
+//				&(CNC->map),
+//				CNC->stepperArr[X].currentPos + dx,
+//				CNC->stepperArr[Y].currentPos + dy);
+//
+//		zSteps = zAbs - CNC->stepperArr[Z].currentPos;
+//
+//		CNC_voidMove3Axis(
+//			CNC,
+//			dx, dy, zSteps,
+//			CNC->speedCurrent, speed2Trim,
+//			speedMaxTrim, acceleration);
+//
+//		xMoved += dx;
+//		yMoved += dy;
+//
+//		// periodic change speed:
+//		if (labs(*largestMovedPtr) % SPEED_CHANGE_DELTA == 0)
+//		{
+//			CNC->speedCurrent = speed2Trim;
+//
+//			speed2Trim = CNC_d64GetEstematedSpeed(
+//				speed1, speed2, speedMax, acceleration,
+//				CNC->point[X], CNC->point[Y], 0,
+//				sqrt((s64)xMoved * (s64)xMoved + (s64)yMoved * (s64)yMoved));
+//
+//			speedMaxTrim = (speed2Trim > CNC->speedCurrent) ?
+//				speed2Trim : CNC->speedCurrent;
+//		}
+//	}
+//}
 
-	s32 dx, dy;
-	
-	s32 xMoved = 0;
-	s32 yMoved = 0;
-	
-	s32* largestMovedPtr;
-	
-	/**	TODO: Optimize the following	**/
-	if (labs(CNC->point[X]) > labs(CNC->point[Y]))
-	{
-		dx =
-			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[X]) /
-			AL_GRID_TRIMMER;
-
-		dy = (s32)((s64)dx * (s64)CNC->point[Y] / (s64)CNC->point[X]);
-		
-		/*
-		 * if yDisplacement was very very small relative to dx, dy would be
-		 * calculated zero, resulting in an infinite loop in the following,
-		 * so correct it and make yDisplacement.
-		 */
-		if (dy == 0		&&		CNC->point[Y] != 0)
-			dy = CNC->point[Y];
-			
-		largestMovedPtr = &xMoved;
-	}
-	else
-	{
-		dy =
-			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[Y]) /
-			AL_GRID_TRIMMER;
-
-		dx = (s32)((s64)dy * (s64)CNC->point[X] / (s64)CNC->point[Y]);
-		
-		if (dx == 0		&&		CNC->point[X] != 0)
-			dx = CNC->point[X];
-		
-		largestMovedPtr = &yMoved;
-	}
-	
-	u32 speed2Trim = speed1;
-	u32 speedMaxTrim = (speed2Trim > CNC->speedCurrent) ?
-		speed2Trim : CNC->speedCurrent;
-	
-	while (
-			labs(xMoved) < labs(CNC->point[X])	||
-			labs(yMoved) < labs(CNC->point[Y])
-		)
-	{
-		if (labs(xMoved + dx) >= labs(CNC->point[X]))
-			dx = CNC->point[X] - xMoved;
-			
-		if (labs(yMoved + dy) >= labs(CNC->point[Y]))
-			dy = CNC->point[Y] - yMoved;
-		
-		// make the wanted z-axis material-bit distance:
-		zAbs =
-			CNC->point[Z] +
-			LevelMap_s32GetDepthAt(
-				&(CNC->map),
-				CNC->stepperArr[X].currentPos + dx,
-				CNC->stepperArr[Y].currentPos + dy);
-
-		zSteps = zAbs - CNC->stepperArr[Z].currentPos;
-		
-		CNC_voidMove3Axis(
-			CNC,
-			dx, dy, zSteps,
-			CNC->speedCurrent, speed2Trim,
-			speedMaxTrim, acceleration);
-		
-		xMoved += dx;
-		yMoved += dy;
-		
-		// periodic change speed:
-		if (labs(*largestMovedPtr) % SPEED_CHANGE_DELTA == 0)
-		{
-			CNC->speedCurrent = speed2Trim;
-			
-			speed2Trim = CNC_d64GetEstematedSpeed(
-				speed1, speed2, speedMax, acceleration,
-				CNC->point[X], CNC->point[Y], 0,
-				sqrt((s64)xMoved * (s64)xMoved + (s64)yMoved * (s64)yMoved));
-				
-			speedMaxTrim = (speed2Trim > CNC->speedCurrent) ?
-				speed2Trim : CNC->speedCurrent;
-		}
-	}
-}
-
-/*
- * probes a grid on the working area, rules of that grid must be initially
- * received from user and validated.
- */
 void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 {
 	/**
@@ -596,12 +785,6 @@ u32 CNC_d64GetEstematedSpeed(
 		return sqrt(speedMaxSquared - (u64)accelerationDoubled * (u64)dDone);
 }
 
-/*
- * Gets d1, d2, d3, and updates maximum speed (if needed) based on Newton's
- * distance, speed, acceleration equation. Further description and math explanation
- * at: "when to accelerate, keep speed and decelerate.pdf" in notes folder in this
- * repository.
- */
 void CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(
 		s32 dTotal,
 		u32 speedStart, u32 speedEnd,
@@ -691,10 +874,6 @@ s32 CNC_s32GetNorm(s32 displacementArr[3])
 		);
 }
 
-/*
- * moves the three axis by a certain argumented displacement and speed/accel
- * params
- */
 void CNC_voidMove3Axis(
 	CNC_t* CNC,
 	s32 xDisplacement, s32 yDisplacement, s32 zDisplacement,
@@ -1161,10 +1340,6 @@ void CNC_voidMove3Axis(
 	}
 }
 
-/*
- * probes at the current position of the tool.
- * (the current position of z-axis after probing, is depth of the sample)
- */
 void CNC_voidProbe(CNC_t* CNC)
 {
 	/**
@@ -1259,25 +1434,15 @@ void CNC_voidMoveManual(CNC_t* CNC)
 
 }
 
-static void read_execute_non_traj_chunk(CNC_t* CNC)
+void CNC_voidChangeRamPos(CNC_t* CNC)
 {
 
-}
-
-static void read_execute_traj_chunk(CNC_t* CNC)
-{
-	/*	create trajectory object	*/
-	Trajectory_t traj;
-	Trajectory_voidInit(&traj, &(CNC->sdCard), "TRAJ.DAT");
 }
 
 void CNC_voidRunGcodeFile(CNC_t* CNC)
 {
-	/*	open input G-code file	*/
-	SDC_voidKeepTryingOpenStream(&(CNC->stream), &(CNC->sdCard), "FILE.NC");
-
 	/*	while G-code file still has un-read lines	*/
-	while(SDC_u8IsThereNextLine(&(CNC->stream)))
+	while(SDC_u8IsThereNextLine(&(CNC->gcodeFile)))
 	{
 		/*
 		 * Read non trajectory code chunk (starting from the first un-read line),

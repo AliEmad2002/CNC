@@ -51,7 +51,7 @@ void G_Code_voidCopyPointAL(G_Code_Msg_t* msgPtr);	// copies sX, sY, eX, eY, vX,
 
 void G_CODE_voidCopyAcceleration(G_Code_Msg_t* msgPtr);
 
-void G_Code_voidUpdateFeedRate(G_Code_Msg_t* msgPtr);
+void G_Code_voidUpdateFeedRateMax(G_Code_Msg_t* msgPtr);
 
 b8 G_Code_b8ParseLine(G_Code_Msg_t* msgPtr, char* line);
 

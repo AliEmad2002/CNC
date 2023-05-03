@@ -11,8 +11,7 @@
  *  Reads and prints from file named "FILE.NC", line by line.
  */
 
-#if 1
-
+#if 0
 /*	LIB	*/
 #include "Std_Types.h"
 #include "Bit_Math.h"

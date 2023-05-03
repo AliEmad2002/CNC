@@ -19,7 +19,9 @@
 #include "Probe.h"
 #include "SDC_interface.h"
 
+#include "CNC_config.h"
 #include "LevelMap.h"
+#include "Trajectory.h"
 
 typedef struct
 {
@@ -27,10 +29,7 @@ typedef struct
 	 * all of the following parameters use "second" as time dimension's unit,
 	 * "step" as length's dimension's unit.
 	 **/
-	u32 feedrateMax;
 	u32 rapidSpeedMax;
-
-	u32 feedAccel;
 	u32 rapidAccel;
 
 	u8 relativePosEnabled : 1;
@@ -40,6 +39,7 @@ typedef struct
 	/** notice that 'LengthUnit' could be either mm or inch	**/
 	u32 stepsPerLengthUnit[3];
 }CNC_Config_t;
+
 
 typedef struct
 {
@@ -54,7 +54,6 @@ typedef struct
 
 	s32 point[6];
 
-	u32 feedrate;
 	u32 speedCurrent;
 	
 	LevelMap_t map;
@@ -62,7 +61,11 @@ typedef struct
 	Probe_t probe;
 
 	SDC_t sdCard;
-	SD_Stream_t stream;
+	SD_Stream_t gcodeFile;
+
+	Trajectory_t trajectory;
+
+	char lineStr[MAX_STR_LEN];
 }CNC_t;
 
 typedef enum{
@@ -74,8 +77,7 @@ typedef enum{
 void CNC_voidInit(CNC_t* CNC);
 
 /*
- * allows the user to change the current position of the tool in memory,
- * usually used for debugging
+ * allows the user to change the current position of the tool in memory.
  */
 void CNC_voidExecuteSoftwareSetPosition(CNC_t* CNC);
 
@@ -149,6 +151,9 @@ void CNC_voidUseMetricUnits(CNC_t* CNC);
 
 /*	makes manual movement	*/
 void CNC_voidMoveManual(CNC_t* CNC);
+
+/*	Changes RAM stored position	*/
+void CNC_voidChangeRamPos(CNC_t* CNC);
 
 /*	starts executing "FILE.NC" G-code file	*/
 void CNC_voidRunGcodeFile(CNC_t* CNC);

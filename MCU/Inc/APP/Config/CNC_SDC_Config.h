@@ -13,5 +13,6 @@
 #define SD_CS_PIN				GPIO_Pin_B0
 #define SD_AFIO_MAP				0
 
+#define MAX_STR_LEN				128
 
 #endif /* INCLUDE_APP_CONFIG_CNC_SDC_CONFIG_H_ */

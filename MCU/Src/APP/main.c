@@ -47,7 +47,7 @@ void steppers_test(void);
 static s32 mapArr[400];
 CNC_t CNC;
 
-int v(void)
+int main(void)
 {
 	/*	init MCAL	*/
 	CNC_voidInitMCAL();
@@ -63,6 +63,9 @@ int v(void)
 	{
 		/*	Make manual movement	*/
 		CNC_voidMoveManual(&CNC);
+
+		/*	Change RAM stored position	*/
+		CNC_voidChangeRamPos(&CNC);
 
 		/*	Run G-code file from the SD-card	*/
 		CNC_voidRunGcodeFile(&CNC);
