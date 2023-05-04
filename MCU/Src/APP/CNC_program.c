@@ -106,11 +106,95 @@ static void read_execute_non_traj_chunk(CNC_t* CNC)
 	}
 }
 
+/*	Given y value, it returns x value on the line: {pi, pf}	*/
+ALWAYS_INLINE_STATIC s32 get_x_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, u32 y)
+{
+	s64 d1 = y - pi->y;
+	s64 d2 = pf->x - pi->x;
+	s64 d3 = pf->y - pi->y;
+
+	s32 x = (d1 * d2) / d3 + pi->x;
+	return x;
+}
+
+/*	Given x value, it returns y value on the line: {pi, pf}	*/
+ALWAYS_INLINE_STATIC s32 get_y_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, u32 x)
+{
+	s64 d1 = x - pi->x;
+	s64 d2 = pf->y - pi->y;
+	s64 d3 = pf->x - pi->x;
+
+	s32 y = (d1 * d2) / d3 + pi->y;
+	return y;
+}
+
+ALWAYS_INLINE_STATIC u64 get_distance_square(s32 x0, s32 x1, s32 y0, s32 y1)
+{
+	s64 dx = x1 - x0;
+	s64 dy = y1 - y0;
+	u64 dSquared = dx * dx + dy * dy;
+	return dSquared;
+}
+
 ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	CNC_t* CNC,
-	Trajectory_Point_t* p0, Trajectory_Point_t* p1, Trajectory_Point_t* pInter)
+	Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
 {
+	s32 y, x;
+	u64 diSquared;
 
+	/*	get yu, yd, xr, xl of the rectangle containing pi	*/
+	s32 yu = (pi->y / CNC->map.dY) * CNC->map.dY;
+	s32 xl = (pi->x / CNC->map.dX) * CNC->map.dX;
+	s32 yd = yu + CNC->map.dY;
+	s32 xr = xl + CNC->map.dX;
+
+	/*	get square of the line length	*/
+	u64 dSquared = get_distance_square(pf->x, pi->x, pf->y, pi->y);
+
+	/*	up / down check	*/
+	if (pi->y != pf->y)
+	{
+		if (pi->y > pf->y)	/*	if line is going up	*/
+			y = yu;
+		else
+			y = yd;
+
+		x = get_x_on_line(pi, pf, y);
+		diSquared = get_distance_square(pi->x, x, pi->y, y);
+
+		/*	 if point is on the rectangle's Perimeter, and is also inside the line: {pi, pf}	*/
+		if (xl <= x  &&  x <= xr  &&  diSquared <= dSquared)
+		{
+			pInter->x = x;
+			pInter->y = y;
+			return;
+		}
+	}
+
+	/*	right left check	*/
+	if (pi->x != pf->x)
+	{
+		if (pi->x > pf->x)	/*	if line is going right	*/
+			x = xr;
+		else
+			x = xl;
+
+		y = get_y_on_line(pi, pf, x);
+		diSquared = get_distance_square(pi->x, x, pi->y, y);
+
+		/*	 if point is on the rectangle's Perimeter, and is also inside the line: {pi, pf}	*/
+		if (yu <= y  &&  y <= yd  &&  diSquared <= dSquared)
+		{
+			pInter->x = x;
+			pInter->y = y;
+			return;
+		}
+	}
+
+	/*	Otherwise, pInter = pf	*/
+	pInter->x = pf->x;
+	pInter->y = pf->y;
 }
 
 ALWAYS_INLINE_STATIC void get_speed_estimation_params(
@@ -213,10 +297,13 @@ ALWAYS_INLINE_STATIC u32 get_estimated_speed(
 /*
  * Moves the machine from its current position to the given "pf".
  * While moving, level depth interpolation is done.
+ *
+ * Flowchart of this function:
+ * 		https://github.com/AliEmad2002/CNC/issues/8#issue-1696592682
  */
 static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 {
-	/*	initial point	*/
+	/*	get initial point (current position of the machine)	*/
 	Trajectory_Point_t pi = {
 		CNC->stepperArr[0].currentPos,
 		CNC->stepperArr[1].currentPos,
@@ -224,55 +311,44 @@ static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 		CNC->speedCurrent
 	};
 
-	/*	prepare some values for speed estimation	*/
+	/*	prepare speed estimation params	*/
 	u32 speedMax, d1, d2;
 	get_speed_estimation_params(
 		&(CNC->trajectory), &pi, pf, &speedMax, &d1, &d2);
 
-	/*
-	 * The line: {pi, pf} is going to be segmented each time it intersects with
-	 * the level grid.
-	 * The segment can be expressed being the line: {pInterGrid0, pInterGrid1}.
-	 */
-	Trajectory_Point_t pInterGrid0 = pi;
+	Trajectory_Point_t pInner0 = pi;
 
-	Trajectory_Point_t pInterGrid1;
-	get_first_intersection_with_level_grid(CNC, &pi, pf, &pInterGrid1);
-
-	pInterGrid1.v = get_estimated_speed(
-		&pi, &pInterGrid1, CNC->trajectory.feedAccel, speedMax, d1, d2);
-
-	u32 zOffset0 = LevelMap_s32GetDepthAt(&(CNC->map), pInterGrid0.x, pInterGrid0.y);
-	u32 zOffset1 = LevelMap_s32GetDepthAt(&(CNC->map), pInterGrid1.x, pInterGrid1.y);
-
-	pInterGrid0.z += zOffset0;
-	pInterGrid1.z += zOffset1;
+	Trajectory_Point_t pInner1;
 
 	while(1)
 	{
+		get_first_intersection_with_level_grid(CNC, &pInner0, pf, &pInner1);
+
+		pInner1.v = get_estimated_speed(
+			&pi, &pInner1, CNC->trajectory.feedAccel, speedMax, d1, d2);
+
+		pInner0.z += LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
+		pInner1.z += LevelMap_s32GetDepthAt(&(CNC->map), pInner1.x, pInner1.y);
+
 		CNC_voidMove3Axis(
 			CNC,
-			pInterGrid1.x - pInterGrid0.x,
-			pInterGrid1.y - pInterGrid0.y,
-			pInterGrid1.z - pInterGrid0.z,
-			pInterGrid0.v, pInterGrid1.v,
+			pInner1.x - pInner0.x,	/*	dx	*/
+			pInner1.y - pInner0.y,	/*	dy	*/
+			pInner1.z - pInner0.z,	/*	dz	*/
+			pInner0.v, pInner1.v,	/*	vi, vf	*/
 			speedMax, CNC->trajectory.feedAccel);
 
 		if (
-			pInterGrid1.x == pf->x	&&
-			pInterGrid1.y == pf->y	&&
-			pInterGrid1.z == pf->z
+			pInner1.x == pf->x	&&
+			pInner1.y == pf->y	&&
+			pInner1.z == pf->z
 			)
 			break;
 
-		pInterGrid0 = pInterGrid1;
-		get_first_intersection_with_level_grid(CNC, &pInterGrid1, pf, &pInterGrid1);
-
-		pInterGrid1.v = get_estimated_speed(
-			&pi, &pInterGrid1, CNC->trajectory.feedAccel, speedMax, d1, d2);
+		pInner0 = pInner1;
 	}
 
-	CNC->speedCurrent = pInterGrid1.v;
+	CNC->speedCurrent = pInner1.v;
 }
 
 static void execute_traj(CNC_t* CNC)
@@ -365,7 +441,9 @@ static void read_execute_traj_chunk(CNC_t* CNC)
 	}
 
 	/*	Plan the read trajectory	*/
+	//u64 s = STK_u64GetElapsedTicks();
 	Trajectory_voidPlan(&(CNC->trajectory));
+	//volatile u64 t = STK_u64GetElapsedTicks() - s;
 
 	/*	Execute it	*/
 	execute_traj(CNC);
