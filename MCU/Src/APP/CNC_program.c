@@ -106,31 +106,186 @@ static void read_execute_non_traj_chunk(CNC_t* CNC)
 	}
 }
 
-static void get_first_intersection_with_level_grid(
+ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	CNC_t* CNC,
 	Trajectory_Point_t* p0, Trajectory_Point_t* p1, Trajectory_Point_t* pInter)
 {
 
 }
 
-static void move_traj_segment(CNC_t* CNC, Trajectory_Point_t* pi, Trajectory_Point_t* pf)
+ALWAYS_INLINE_STATIC void get_speed_estimation_params(
+	Trajectory_t* traj, Trajectory_Point_t* pi, Trajectory_Point_t* pf,
+	u32* ptrSpeedMax, u32* ptrD1, u32* ptrD2)
 {
-	Trajectory_Point_t pInterGrid0 = *pi;
+	s64 xDisplacement = pf->x - pi->x;
+	s64 yDisplacement = pf->y - pi->y;
+	s64 zDisplacement = pf->z - pi->z;
+
+	u32 displacementMagnitude = sqrt(
+	xDisplacement * xDisplacement +
+	yDisplacement * yDisplacement +
+	zDisplacement * zDisplacement
+	);
+
+	u64 speed1Squared = (u64)pi->v * (u64)pi->v;
+	u64 speed2Squared = (u64)pf->v * (u64)pf->v;
+	u64 speedMaxSquared = (u64)traj->feedrateMax * (u64)traj->feedrateMax;
+	u32 accelerationDoubled = 2 * traj->feedAccel;
+
+	s32 d1 =
+		speedMaxSquared / accelerationDoubled -
+		speed1Squared / accelerationDoubled;
+
+	s32 d3 =
+		speedMaxSquared / accelerationDoubled -
+		speed2Squared / accelerationDoubled;
+
+	s32 d2 = displacementMagnitude - (d1 + d3);
+	if (d2 < 0)
+	{
+		/*
+		 * d2 value is to be divided into two relative parts, each added to d1
+		 * or d3 by a calculated weight.
+		 */
+		s32 d2Half = d2 / 2;
+
+		d1 = d1 + d2Half;
+
+		d3 = d3 + d2Half;
+
+		if (d1 < 0)
+			d1 = 0;
+
+		if (d3 < 0)
+			d3 = 0;
+
+		speedMaxSquared = (u64)accelerationDoubled * (u64)d1 + speed1Squared;
+		*ptrSpeedMax = sqrt(speedMaxSquared);
+
+		/*
+		 * this d2 can't ever be negative, as this is compensated in the
+		 * trajectory planning function.
+		 */
+		//d2 = displacementMagnitude - (d1 + d3);	//	it should be zero, so
+													//	won't overhead cal-
+													//	culating.
+		d2 = 0;
+	}
+	else
+	{
+		*ptrSpeedMax = traj->feedrateMax;
+	}
+
+	*ptrD1 = (u32)d1;
+	*ptrD2 = (u32)d2;
+}
+
+ALWAYS_INLINE_STATIC u32 get_estimated_speed(
+	Trajectory_Point_t* pi, Trajectory_Point_t* p,
+	u32 accel, u32 speedMax, u32 d1, u32 d2)
+{
+	/*	Calculate the distance: {pi, p}	*/
+	s64 xDisplacement = p->x - pi->x;
+	s64 yDisplacement = p->y - pi->y;
+	s64 zDisplacement = p->z - pi->z;
+
+	u64 dist = sqrt(
+	xDisplacement * xDisplacement +
+	yDisplacement * yDisplacement +
+	zDisplacement * zDisplacement
+	);
+
+	/*	Get the estimated speed	*/
+	u64 speed1Squared = (u64)pi->v * (u64)pi->v;
+	u64 speedMaxSquared = speedMax * speedMax;
+	u64 accelerationDoubled = 2 * accel;
+
+	if (dist < d1)	// still accelerating:
+		return sqrt(speed1Squared + accelerationDoubled * dist);
+
+	else if (dist < d1 + d2)	// reached speedMax and running by it:
+		return speedMax;
+
+	else //if (dDone < d1+d2+d3)	// decelerating:
+		return sqrt(speedMaxSquared - accelerationDoubled * dist);
+}
+
+/*
+ * Moves the machine from its current position to the given "pf".
+ * While moving, level depth interpolation is done.
+ */
+static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
+{
+	/*	initial point	*/
+	Trajectory_Point_t pi = {
+		CNC->stepperArr[0].currentPos,
+		CNC->stepperArr[1].currentPos,
+		CNC->stepperArr[2].currentPos,
+		CNC->speedCurrent
+	};
+
+	/*	prepare some values for speed estimation	*/
+	u32 speedMax, d1, d2;
+	get_speed_estimation_params(
+		&(CNC->trajectory), &pi, pf, &speedMax, &d1, &d2);
+
+	/*
+	 * The line: {pi, pf} is going to be segmented each time it intersects with
+	 * the level grid.
+	 * The segment can be expressed being the line: {pInterGrid0, pInterGrid1}.
+	 */
+	Trajectory_Point_t pInterGrid0 = pi;
+
 	Trajectory_Point_t pInterGrid1;
-	get_first_intersection_with_level_grid(CNC, pi, pf, &pInterGrid1);
+	get_first_intersection_with_level_grid(CNC, &pi, pf, &pInterGrid1);
 
+	pInterGrid1.v = get_estimated_speed(
+		&pi, &pInterGrid1, CNC->trajectory.feedAccel, speedMax, d1, d2);
 
+	u32 zOffset0 = LevelMap_s32GetDepthAt(&(CNC->map), pInterGrid0.x, pInterGrid0.y);
+	u32 zOffset1 = LevelMap_s32GetDepthAt(&(CNC->map), pInterGrid1.x, pInterGrid1.y);
+
+	pInterGrid0.z += zOffset0;
+	pInterGrid1.z += zOffset1;
+
+	while(1)
+	{
+		CNC_voidMove3Axis(
+			CNC,
+			pInterGrid1.x - pInterGrid0.x,
+			pInterGrid1.y - pInterGrid0.y,
+			pInterGrid1.z - pInterGrid0.z,
+			pInterGrid0.v, pInterGrid1.v,
+			speedMax, CNC->trajectory.feedAccel);
+
+		if (
+			pInterGrid1.x == pf->x	&&
+			pInterGrid1.y == pf->y	&&
+			pInterGrid1.z == pf->z
+			)
+			break;
+
+		pInterGrid0 = pInterGrid1;
+		get_first_intersection_with_level_grid(CNC, &pInterGrid1, pf, &pInterGrid1);
+
+		pInterGrid1.v = get_estimated_speed(
+			&pi, &pInterGrid1, CNC->trajectory.feedAccel, speedMax, d1, d2);
+	}
+
+	CNC->speedCurrent = pInterGrid1.v;
 }
 
 static void execute_traj(CNC_t* CNC)
 {
-	Trajectory_Point_t a, b;
+//	Trajectory_voidPrint(&(CNC->trajectory));
+//	while(1);
 
-	for (u32 i = 0; i < CNC->trajectory.numberOfPoints - 1; i++)
+	Trajectory_Point_t p;
+
+	for (u32 i = 0; i < CNC->trajectory.numberOfPoints; i++)
 	{
-		Trajectory_voidGetPointAt(&(CNC->trajectory), i    , &a);
-		Trajectory_voidGetPointAt(&(CNC->trajectory), i + 1, &b);
-		move_traj_segment(CNC, a, b);
+		Trajectory_voidGetPointAt(&(CNC->trajectory), i, &p);
+		move_to(CNC, &p);
 	}
 }
 
@@ -411,167 +566,6 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 	}
 }
 
-//void CNC_voidExecuteMovement(CNC_t* CNC, CNC_MovementType_t movementType)
-//{
-//	/*	prepare moving parameters	*/
-//	if (CNC->config.relativePosEnabled == 0)
-//	{
-//		CNC->point[X] -= CNC->stepperArr[X].currentPos;
-//		CNC->point[Y] -= CNC->stepperArr[Y].currentPos;
-//	}
-//
-//	u32 speed1 = CNC->speedCurrent;
-//	u32 speed2;
-//	u32 speedMax;
-//	u32 acceleration;
-//
-//	if (movementType == CNC_MovementType_rapid)
-//	{
-//		speed2 = 0;
-//		speedMax = CNC->config.rapidSpeedMax;
-//		CNC->speedCurrent = 0;
-//		acceleration = CNC->config.rapidAccel;
-//	}
-//	else	// if (movementType == CNC_MOVEMENTTYPE_feed)
-//	{
-//		speed2 = CNC->feedrate;
-//		speedMax = CNC->config.feedrateMax;
-//		if (speed2 > speedMax)
-//			speedMax = speed2;
-//
-//		CNC->speedCurrent = speed2;
-//		acceleration = CNC->config.feedAccel;
-//	}
-//
-//	/*	move	*/
-//	if (CNC->config.autoLevelingEnabled == 0)
-//	{
-//		if (CNC->config.relativePosEnabled == 0)
-//			CNC->point[Z] -= CNC->stepperArr[Z].currentPos;
-//
-//		CNC_voidMove3Axis(
-//			CNC,
-//			CNC->point[X], CNC->point[Y], CNC->point[Z],
-//			speed1, speed2, speedMax, acceleration
-//			);
-//		return;
-//	}
-//
-//	/*	if auto leveling is enabled	*/
-//	s32 zAbs =
-//		CNC->point[Z] +
-//		LevelMap_s32GetDepthAt(&(CNC->map),
-//		CNC->stepperArr[X].currentPos, CNC->stepperArr[Y].currentPos);
-//	s32 zSteps = zAbs - CNC->stepperArr[Z].currentPos;
-//
-//	if (movementType == CNC_MovementType_rapid)
-//	{
-//		/*
-//		 * no need to auto level along the movement. (to avoid high speed
-//		 * movement scattering)
-//		 */
-//		CNC_voidMove3Axis(
-//			CNC,
-//			CNC->point[X], CNC->point[Y], zSteps,
-//			speed1, speed2, speedMax, acceleration
-//			);
-//		return;
-//	}
-//
-//	/*	make the z displacement first	*/
-//	CNC_voidMove3Axis(
-//		CNC, 0 ,0, zSteps, speed1, speed2, speedMax, acceleration);
-//
-//	s32 dx, dy;
-//
-//	s32 xMoved = 0;
-//	s32 yMoved = 0;
-//
-//	s32* largestMovedPtr;
-//
-//	/**	TODO: Optimize the following	**/
-//	if (labs(CNC->point[X]) > labs(CNC->point[Y]))
-//	{
-//		dx =
-//			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[X]) /
-//			AL_GRID_TRIMMER;
-//
-//		dy = (s32)((s64)dx * (s64)CNC->point[Y] / (s64)CNC->point[X]);
-//
-//		/*
-//		 * if yDisplacement was very very small relative to dx, dy would be
-//		 * calculated zero, resulting in an infinite loop in the following,
-//		 * so correct it and make yDisplacement.
-//		 */
-//		if (dy == 0		&&		CNC->point[Y] != 0)
-//			dy = CNC->point[Y];
-//
-//		largestMovedPtr = &xMoved;
-//	}
-//	else
-//	{
-//		dy =
-//			CNC->map.ds * (s32)MATH_s16FindSignOf(CNC->point[Y]) /
-//			AL_GRID_TRIMMER;
-//
-//		dx = (s32)((s64)dy * (s64)CNC->point[X] / (s64)CNC->point[Y]);
-//
-//		if (dx == 0		&&		CNC->point[X] != 0)
-//			dx = CNC->point[X];
-//
-//		largestMovedPtr = &yMoved;
-//	}
-//
-//	u32 speed2Trim = speed1;
-//	u32 speedMaxTrim = (speed2Trim > CNC->speedCurrent) ?
-//		speed2Trim : CNC->speedCurrent;
-//
-//	while (
-//			labs(xMoved) < labs(CNC->point[X])	||
-//			labs(yMoved) < labs(CNC->point[Y])
-//		)
-//	{
-//		if (labs(xMoved + dx) >= labs(CNC->point[X]))
-//			dx = CNC->point[X] - xMoved;
-//
-//		if (labs(yMoved + dy) >= labs(CNC->point[Y]))
-//			dy = CNC->point[Y] - yMoved;
-//
-//		// make the wanted z-axis material-bit distance:
-//		zAbs =
-//			CNC->point[Z] +
-//			LevelMap_s32GetDepthAt(
-//				&(CNC->map),
-//				CNC->stepperArr[X].currentPos + dx,
-//				CNC->stepperArr[Y].currentPos + dy);
-//
-//		zSteps = zAbs - CNC->stepperArr[Z].currentPos;
-//
-//		CNC_voidMove3Axis(
-//			CNC,
-//			dx, dy, zSteps,
-//			CNC->speedCurrent, speed2Trim,
-//			speedMaxTrim, acceleration);
-//
-//		xMoved += dx;
-//		yMoved += dy;
-//
-//		// periodic change speed:
-//		if (labs(*largestMovedPtr) % SPEED_CHANGE_DELTA == 0)
-//		{
-//			CNC->speedCurrent = speed2Trim;
-//
-//			speed2Trim = CNC_d64GetEstematedSpeed(
-//				speed1, speed2, speedMax, acceleration,
-//				CNC->point[X], CNC->point[Y], 0,
-//				sqrt((s64)xMoved * (s64)xMoved + (s64)yMoved * (s64)yMoved));
-//
-//			speedMaxTrim = (speed2Trim > CNC->speedCurrent) ?
-//				speed2Trim : CNC->speedCurrent;
-//		}
-//	}
-//}
-
 void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 {
 	/**
@@ -713,76 +707,6 @@ void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)
 
 	/*	read flash	*/
 	LevelMap_voidRestoreFromFlash(&(CNC->map));
-}
-
-/*
- * calculates the speed at a given point.
- * (used in auto leveled movements)
- */
-u32 CNC_d64GetEstematedSpeed(
-	u32 speed1, u32 speed2, u32 speedMax, u32 acceleration,
-	s32 xDisplacement, s32 yDisplacement, s32 zDisplacement, u32 dDone
-	)
-{
-	u32 displacementMagnitude = sqrt(
-	(s64)xDisplacement * (s64)xDisplacement +
-	(s64)yDisplacement * (s64)yDisplacement +
-	(s64)zDisplacement * (s64)zDisplacement
-	);
-	
-	u64 speed1Squared = (u64)speed1 * (u64)speed1;
-	u64 speed2Squared = (u64)speed2 * (u64)speed2;
-	u64 speedMaxSquared = (u64)speedMax * (u64)speedMax;
-	u32 accelerationDoubled = 2 * acceleration;
-	
-	s32 d1 =
-		speedMaxSquared / accelerationDoubled -
-		speed1Squared / accelerationDoubled;
-
-	s32 d3 =
-		speedMaxSquared / accelerationDoubled -
-		speed2Squared / accelerationDoubled;
-	
-	s32 d2 = displacementMagnitude - (d1 + d3);
-	if (d2 < 0)
-	{
-		/*
-		 * d2 value is to be divided into two relative parts, each added to d1
-		 * or d3 by a calculated weight.
-		 */
-		s32 d2Half = d2 / 2;
-		
-		d1 = d1 + d2Half;
-		
-		d3 = d3 + d2Half;
-		
-		if (d1 < 0)
-			d1 = 0;
-		
-		if (d3 < 0)
-			d3 = 0;
-		
-		speedMax = sqrt((u64)accelerationDoubled * (u64)d1 + speed1Squared);
-		speedMaxSquared = (u64)speedMax * (u64)speedMax;
-		
-		/*
-		 * this d2 can't ever be negative, as this is compensated in the
-		 * windows program.
-		 */
-		//d2 = displacementMagnitude - (d1 + d3);	//	it should be zero, so
-													//	won't overhead cal-
-													//	culating.
-		d2 = 0;
-	}
-	
-	if (dDone < (u32)d1)	// still accelerating:
-		return sqrt(speed1Squared + (u64)accelerationDoubled * (u64)dDone);
-		
-	else if (dDone < (u32)(d1+d2))	// reached speedMax and running by it:
-		return speedMax;
-		
-	else //if (dDone < d1+d2+d3)	// decelerating:
-		return sqrt(speedMaxSquared - (u64)accelerationDoubled * (u64)dDone);
 }
 
 void CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(

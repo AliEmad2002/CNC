@@ -18,6 +18,7 @@
 #include "GPIO_interface.h"
 
 /*	SELF	*/
+#include "SDC_config.h"
 #include "SDC_Private.h"
 #include "SDC_interface.h"
 #include "SDC_CRC.h"
@@ -455,7 +456,7 @@ static u8 init_flow(SDC_t* sdc)
 	u8 gotR7;
 	u8 successfull;
 
-	SPI_voidSetBaudRatePrescaler(sdc->spiUnitNumber, SPI_Prescaler_256);
+	SPI_voidSetBaudRatePrescaler(sdc->spiUnitNumber, INIT_SPI_BAUD_PRESCALER);
 
 	/*	Initially, no sectors have been read yet	*/
 	sdc->lbaRead = 0xFFFFFFFF;
@@ -522,7 +523,7 @@ static u8 init_flow(SDC_t* sdc)
 	if (!successfull)
 		return 0;
 
-	SPI_voidSetBaudRatePrescaler(sdc->spiUnitNumber, SPI_Prescaler_2);
+	SPI_voidSetBaudRatePrescaler(sdc->spiUnitNumber, TRANS_SPI_BAUD_PRESCALER);
 
 	return 1;
 }
@@ -538,7 +539,7 @@ u8 SDC_u8InitConnection(
 
 	SPI_voidInit(
 		sdc->spiUnitNumber, SPI_Directional_Mode_Uni, SPI_DataFrameFormat_8bit,
-		SPI_FrameDirection_MSB_First, SPI_Prescaler_256, SPI_Mode_Master,
+		SPI_FrameDirection_MSB_First, INIT_SPI_BAUD_PRESCALER, SPI_Mode_Master,
 		SPI_ClockPolarity_0Idle, SPI_ClockPhase_CaptureFirst);
 
 	SPI_voidInitPins(spiUnitNumber, afioMap, 0, 1, 1);

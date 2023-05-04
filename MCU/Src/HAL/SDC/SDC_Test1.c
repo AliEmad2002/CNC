@@ -65,7 +65,7 @@ int main(void)
 	SDC_voidKeepTryingInitPartition(&sd);
 
 	SD_Stream_t stream;
-	SDC_voidKeepTryingOpenStream(&stream, &sd, "MYFILE.NC");
+	SDC_voidKeepTryingOpenStream(&stream, &sd, "FILE.NC");
 
 	char line[1024];
 
