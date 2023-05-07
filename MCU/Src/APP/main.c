@@ -44,7 +44,6 @@
 
 void steppers_test(void);
 
-static s32 mapArr[400];
 CNC_t CNC;
 
 int main(void)
@@ -56,7 +55,6 @@ int main(void)
 	Delay_voidBlockingDelayMs(STARTUP_STABLIZATION_DELAY_MS);
 
 	/*	init CNC object	*/
-	CNC.map.mapArr = mapArr;
 	CNC_voidInit(&CNC);
 
 	while(1)

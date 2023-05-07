@@ -25,5 +25,7 @@ void Probe_voidInit(Probe_t* probe)
 
 u8 Probe_u8GetStatus(Probe_t* probe)	// 0: open circuit, 1: closed circuit.
 {
-	return GPIO_b8ReadPinDigital(probe->port, probe->pin) ^ probe->openCirciutLevel;
+	volatile u8 pinState = GPIO_DIGITAL_READ(probe->port, probe->pin);
+
+	return pinState ^ probe->openCirciutLevel;
 }

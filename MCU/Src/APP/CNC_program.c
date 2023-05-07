@@ -35,6 +35,8 @@
 
 static u64 ticksPerSecond;
 
+static s32 mapArr[400];
+
 /*******************************************************************************
  * Static (private) functions:
  ******************************************************************************/
@@ -136,6 +138,36 @@ ALWAYS_INLINE_STATIC u64 get_distance_square(s32 x0, s32 x1, s32 y0, s32 y1)
 	return dSquared;
 }
 
+static u32 get_xy_d(Trajectory_Point_t* pi, Trajectory_Point_t* pf)
+{
+	s64 dx = pf->x - pi->x;
+	s64 dy = pf->y - pi->y;
+
+	u32 d = sqrt(dx*dx + dy*dy);
+	return d;
+}
+
+/*
+ * using {x, y} of "pInter", this function interpolates "pi->z" and "pf->z" to
+ * get and write "pInter->z".
+ */
+static void get_z_inner(Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
+{
+	s64 dTotal = get_xy_d(pi, pf);
+	s64 d = get_xy_d(pi, pInter);
+
+	if (dTotal == 0  &&  d == 0)
+	{
+		pInter->z = pf->z;
+		return;
+	}
+
+	s64 dz = pf->z - pi->z;
+	s64 offset = (dz * d) / dTotal;
+
+	pInter->z = pi->z + (s32)offset;
+}
+
 ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	CNC_t* CNC,
 	Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
@@ -168,6 +200,7 @@ ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 		{
 			pInter->x = x;
 			pInter->y = y;
+			get_z_inner(pi, pf, pInter);
 			return;
 		}
 	}
@@ -188,6 +221,7 @@ ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 		{
 			pInter->x = x;
 			pInter->y = y;
+			get_z_inner(pi, pf, pInter);
 			return;
 		}
 	}
@@ -195,6 +229,7 @@ ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	/*	Otherwise, pInter = pf	*/
 	pInter->x = pf->x;
 	pInter->y = pf->y;
+	pInter->z = pf->z;
 }
 
 ALWAYS_INLINE_STATIC void get_speed_estimation_params(
@@ -311,6 +346,22 @@ static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 		CNC->speedCurrent
 	};
 
+	/*	if auto leveling is not enabled, make the movement at once	*/
+	if (CNC->config.autoLevelingEnabled == 0)
+	{
+		CNC_voidMove3Axis(
+			CNC,
+			pf->x - pi.x,	/*	dx	*/
+			pf->y - pi.y,	/*	dy	*/
+			pf->z - pi.z,	/*	dz	*/
+			pi.v, pf->v,	/*	vi, vf	*/
+			CNC->trajectory.feedrateMax, CNC->trajectory.feedAccel);
+
+		CNC->speedCurrent = pf->v;
+		return;
+	}
+
+	/*	otherwise, movement is segmented into smaller movements	*/
 	/*	prepare speed estimation params	*/
 	u32 speedMax, d1, d2;
 	get_speed_estimation_params(
@@ -353,7 +404,7 @@ static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 
 static void execute_traj(CNC_t* CNC)
 {
-//	Trajectory_voidPrint(&(CNC->trajectory));
+	Trajectory_voidPrint(&(CNC->trajectory));
 //	while(1);
 
 	Trajectory_Point_t p;
@@ -454,12 +505,6 @@ static void read_execute_traj_chunk(CNC_t* CNC)
  ******************************************************************************/
 void CNC_voidInit(CNC_t* CNC)
 {
-	/*	probe	*/
-	CNC->probe.port = AUTO_LEVELING_PROBE_PIN / 16;
-	CNC->probe.pin  = AUTO_LEVELING_PROBE_PIN % 16;
-	CNC->probe.openCirciutLevel = AUTO_LEVELING_PROBE_OC_LEVEL;
-	Probe_voidInit(&(CNC->probe));
-	
 	/*	steppers	*/
 	CNC->stepperArr[0].stepPort = X_STEP_PIN / 16;
 	CNC->stepperArr[0].stepPin  = X_STEP_PIN % 16;
@@ -514,6 +559,15 @@ void CNC_voidInit(CNC_t* CNC)
 
 	/*	map	*/
 	CNC->map.flashSavingBasePage = AUTO_LEVELING_FLASH_BASE_PAGE;
+	CNC->map.mapArr = mapArr;
+	for (u16 i = 0; i < 400; i++)
+		mapArr[i] = 0;
+
+	/*	probe	*/
+	CNC->probe.port = AUTO_LEVELING_PROBE_PIN / 16;
+	CNC->probe.pin  = AUTO_LEVELING_PROBE_PIN % 16;
+	CNC->probe.openCirciutLevel = AUTO_LEVELING_PROBE_OC_LEVEL;
+	Probe_voidInit(&(CNC->probe));
 
 	/*	obviously, machine've just started	*/
 	CNC->speedCurrent = 0;
@@ -1467,7 +1521,7 @@ char get_choise(void)
 
 u8 CNC_u8AskNew(CNC_t* CNC)
 {
-
+	return 0;
 }
 
 
