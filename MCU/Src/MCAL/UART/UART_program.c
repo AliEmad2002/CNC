@@ -330,7 +330,10 @@ void UART_voidReceiveUntilByte(UART_UnitNumber_t UARTn, char* str, char term)
 	{
 		UART_enumReciveByte(UARTn, str+i);
 		if (str[i] == term)
+		{
+			str[i] = '\0';
 			return;
+		}
 	}
 }
 

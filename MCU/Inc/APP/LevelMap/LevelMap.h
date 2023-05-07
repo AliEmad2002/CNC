@@ -23,8 +23,6 @@ typedef struct{
 	s32 dX;
 	s32 dY;
 
-	s32 ds; // smaller of dX & dY
-
 	/*
 	 * number of the flash page at which program starts storing / restoring the
 	 * 'LevelMap_t' object data.
@@ -32,7 +30,7 @@ typedef struct{
 	u8 flashSavingBasePage;
 }LevelMap_t;
 
-void LevelMap_voidInit(LevelMap_t* map);	// evaluated dX, dY and ds
+void LevelMap_voidInit(LevelMap_t* map);	// evaluates dX, dY
 
 /*
  * Sets depth of a point on the map, given indexes of its containing cell in

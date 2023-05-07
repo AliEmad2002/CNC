@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <cmsis_gcc.h>
+#include <string.h>
 #include "STD_TYPES.h"
 #include "BIT_MATH.h"
 #include "My_Math.h"
@@ -27,11 +28,13 @@
 #include "GPIO_interface.h"
 #include "STK_interface.h"
 #include "FPEC_interface.h"
+#include "UART_interface.h"
 
 /*	SELF	*/
 #include "CNC_private.h"
 #include "CNC_config.h"
 #include "CNC_interface.h"
+
 
 static u64 ticksPerSecond;
 
@@ -500,11 +503,24 @@ static void read_execute_traj_chunk(CNC_t* CNC)
 	execute_traj(CNC);
 }
 
+static f32 get_uart_num(void)
+{
+	char str[UART_MAX_STRLEN];
+	UART_voidReceiveUntilByte(UART_UNIT_NUMBER, str, '\r');
+	return Math_f32StrToFloat(str, 0, strlen(str) - 1);
+}
+
 /*******************************************************************************
  * Interface functions:
  ******************************************************************************/
 void CNC_voidInit(CNC_t* CNC)
 {
+	/*	probe	*/
+	CNC->probe.port = AUTO_LEVELING_PROBE_PIN / 16;
+	CNC->probe.pin  = AUTO_LEVELING_PROBE_PIN % 16;
+	CNC->probe.openCirciutLevel = AUTO_LEVELING_PROBE_OC_LEVEL;
+	Probe_voidInit(&(CNC->probe));
+
 	/*	steppers	*/
 	CNC->stepperArr[0].stepPort = X_STEP_PIN / 16;
 	CNC->stepperArr[0].stepPin  = X_STEP_PIN % 16;
@@ -562,12 +578,6 @@ void CNC_voidInit(CNC_t* CNC)
 	CNC->map.mapArr = mapArr;
 	for (u16 i = 0; i < 400; i++)
 		mapArr[i] = 0;
-
-	/*	probe	*/
-	CNC->probe.port = AUTO_LEVELING_PROBE_PIN / 16;
-	CNC->probe.pin  = AUTO_LEVELING_PROBE_PIN % 16;
-	CNC->probe.openCirciutLevel = AUTO_LEVELING_PROBE_OC_LEVEL;
-	Probe_voidInit(&(CNC->probe));
 
 	/*	obviously, machine've just started	*/
 	CNC->speedCurrent = 0;
@@ -1487,12 +1497,89 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 
 void CNC_voidMoveManual(CNC_t* CNC)
 {
+	char ch;
 
+	while(1)
+	{
+		UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+
+		switch(ch)
+		{
+		case 'w':
+			CNC_voidMove3Axis(
+				CNC, 0, -200, 0,
+				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
+				CNC->config.rapidAccel);
+			break;
+
+		case 's':
+			CNC_voidMove3Axis(
+				CNC, 0, 200, 0,
+				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
+				CNC->config.rapidAccel);
+			break;
+
+		case 'a':
+			CNC_voidMove3Axis(
+				CNC, -200, 0, 0,
+				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
+				CNC->config.rapidAccel);
+			break;
+
+		case 'd':
+			CNC_voidMove3Axis(
+				CNC, 200, 0, 0,
+				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
+				CNC->config.rapidAccel);
+			break;
+
+		case 'q':
+			CNC_voidMove3Axis(
+				CNC, 0, 0, -200,
+				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
+				CNC->config.rapidAccel);
+			break;
+
+		case 'e':
+			CNC_voidMove3Axis(
+				CNC, 0, 0, 200,
+				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
+				CNC->config.rapidAccel);
+			break;
+
+		case '0':
+			return;
+		}
+	}
 }
 
 void CNC_voidChangeRamPos(CNC_t* CNC)
 {
+	char ch;
 
+	UART_voidSendString(UART_UNIT_NUMBER, "Change x-RAM pos? (y/else): ");
+	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+	if (ch == 'y')
+	{
+		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter x: ");
+		CNC->stepperArr[0].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[0];
+	}
+
+	UART_voidSendString(UART_UNIT_NUMBER, "\r\nChange y-RAM pos? (y/else): ");
+	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+	if (ch == 'y')
+	{
+		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter y: ");
+		CNC->stepperArr[1].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[1];
+	}
+
+	UART_voidSendString(UART_UNIT_NUMBER, "\r\nChange z-RAM pos? (y/else): ");
+	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+	if (ch == 'y')
+	{
+		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter x: ");
+		CNC->stepperArr[2].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[2];
+	}
 }
 
 void CNC_voidRunGcodeFile(CNC_t* CNC)
@@ -1511,17 +1598,13 @@ void CNC_voidRunGcodeFile(CNC_t* CNC)
 	}
 }
 
-char get_choise(void)
-{
-	char buffer[16];
-	trace_printf("Choise: ");
-	trace_puts(buffer);
-	return buffer[0];
-}
-
 u8 CNC_u8AskNew(CNC_t* CNC)
 {
-	return 0;
+	char ch;
+
+	UART_voidSendString(UART_UNIT_NUMBER, "Make new operation from \"FILE.NC\"? (y/else): ");
+	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+	return (ch == 'y');
 }
 
 

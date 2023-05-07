@@ -17,13 +17,10 @@
 #include "LevelMap.h"
 
 
-void LevelMap_voidInit(LevelMap_t* map)		// evaluated dX, dY and ds
+void LevelMap_voidInit(LevelMap_t* map)		// evaluates dX, dY
 {
 	map->dY = (map->eY - map->sY) / (s32)(map->nY - 1);
-
 	map->dX = (map->eX - map->sX) / (s32)(map->nX - 1);
-
-	map->ds = (map->dX < map->dY) ? map->dX : map->dY;
 }
 
 void LevelMap_voidSetDepthAt(LevelMap_t* map, u8 cellY, u8 cellX, s32 depth)

@@ -19,6 +19,7 @@
 #include "Probe.h"
 #include "SDC_interface.h"
 
+#include "G_code_interface.h"
 #include "CNC_config.h"
 #include "LevelMap.h"
 #include "Trajectory.h"

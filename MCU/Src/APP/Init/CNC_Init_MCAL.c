@@ -82,9 +82,9 @@ void CNC_voidInitRCC(void)
 
 void CNC_voidInitUART(void)
 {
-//	/*	init	*/
-//	UART_voidFastInit(UART_UNIT_NUMBER, UART_BAUD_RATE, UART_AFIO_MAP);
-//
+	/*	init	*/
+	UART_voidFastInit(UART_UNIT_NUMBER, UART_BAUD_RATE, UART_AFIO_MAP);
+
 //	/*	enable UART receive interrupt	*/
 //	NVIC_voidEnableInterrupt(UART_UNIT_NUMBER + NVIC_Interrupt_USART1);
 //	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);

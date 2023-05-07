@@ -14,25 +14,24 @@
  ******************************************************************************/
 #define UART_UNIT_NUMBER				UART_UnitNumber_1
 
-#define UART_AFIO_MAP					0
+#define UART_AFIO_MAP					1
 
-#define UART_BAUD_RATE					115200
+#define UART_BAUD_RATE					9600
 
 /******************************************************************************
  * 	Buffer configuration:
  ******************************************************************************/
-#define UART_MAX_STRLEN						128	// bytes
-
-#define LOOK_AHEAD_STACK_LEN				64	//	messages
+#define UART_MAX_STRLEN						16	// bytes
+//#define LOOK_AHEAD_STACK_LEN				64	//	messages
 
 /******************************************************************************
  * 	Computer handshake:
  ******************************************************************************/
-#define UART_COMPUTER_ACK_BYTE			';'
-
-#define UART_COMPUTER_TERMINATOR_BYTE	';'
-
-#define UART_COMPUTER_RESEND_BYTE		'+'
+//#define UART_COMPUTER_ACK_BYTE			';'
+//
+//#define UART_COMPUTER_TERMINATOR_BYTE	';'
+//
+//#define UART_COMPUTER_RESEND_BYTE		'+'
 
 
 

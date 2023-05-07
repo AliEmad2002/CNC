@@ -21,7 +21,7 @@
 
 /*	spindles driving PWM signal	*/
 #define SPINDLE_PWM_TIM_UNIT_NUMBER			1
-#define SPINDLE_PWM_TIM_CHANNEL				TIM_Channel_1
+#define SPINDLE_PWM_TIM_CHANNEL				TIM_Channel_3
 #define SPINDLE_PWM_AFIO_MAP				0
 
 /*	How frequently will speed be changed, in steps	*/
