@@ -54,7 +54,7 @@ s32 LevelMap_s32GetDepthAt(LevelMap_t* map, s32 x, s32 y)
 	s64 dBR = map->mapArr[(iP+1) * map->nX + jP+1];			//	[iP+1][jP+1]
 
 	/*	Bilinear interpolation	*/
-	s64 d =
+	volatile s64 d =
 		dTL * (xL + map->dX - x) * (yT + map->dY - y) +
 		dBL * (x - xL) * (yT + map->dY - y) +
 		dTR * (xL + map->dX - x) * (y - yT) +

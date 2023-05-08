@@ -90,7 +90,7 @@ void G_Code_voidCopyPointAL(G_Code_Msg_t* msgPtr)
 	while(i--)
 		CNC.point[i] =
 			msgPtr->paramNumArr[i] *
-			(f32)CNC.config.stepsPerLengthUnit[i];
+			(f32)CNC.config.stepsPerLengthUnit[i/2];
 }
 
 void G_CODE_voidCopyAcceleration(G_Code_Msg_t* msgPtr)

@@ -381,15 +381,15 @@ static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 		pInner1.v = get_estimated_speed(
 			&pi, &pInner1, CNC->trajectory.feedAccel, speedMax, d1, d2);
 
-		pInner0.z += LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
-		pInner1.z += LevelMap_s32GetDepthAt(&(CNC->map), pInner1.x, pInner1.y);
+		s32 zOffset0 = LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
+		s32 zOffset1 = LevelMap_s32GetDepthAt(&(CNC->map), pInner1.x, pInner1.y);
 
 		CNC_voidMove3Axis(
 			CNC,
-			pInner1.x - pInner0.x,	/*	dx	*/
-			pInner1.y - pInner0.y,	/*	dy	*/
-			pInner1.z - pInner0.z,	/*	dz	*/
-			pInner0.v, pInner1.v,	/*	vi, vf	*/
+			pInner1.x - pInner0.x,								/*	dx	*/
+			pInner1.y - pInner0.y,								/*	dy	*/
+			(pInner1.z + zOffset1) - (pInner0.z + zOffset0),	/*	dz	*/
+			pInner0.v, pInner1.v,								/*	vi, vf	*/
 			speedMax, CNC->trajectory.feedAccel);
 
 		if (
@@ -583,6 +583,12 @@ void CNC_voidInit(CNC_t* CNC)
 	CNC->speedCurrent = 0;
 	
 	/*
+	 * Rapid speed is 600mm/min.
+	 * TODO: make this G-code editable	*/
+	CNC->config.rapidSpeedMax =
+		600.0f * (f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
+
+	/*
 	 * storing ticks per second, to avoid the overhead resulted from executing
 	 * the function "STK_u32GetTicksPerSecond()" frequently.
 	 */
@@ -684,10 +690,6 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 		case G_CODE_setMaxFeedrate:
 			CNC->trajectory.feedrateMax =
 				msgPtr->paramNumArr[0] * (f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
-
-			/*	TODO: make this G-code editable	*/
-			CNC->config.rapidSpeedMax =
-				600.0f * (f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
 			break;
 
 		case G_CODE_setAcceleration:
@@ -1498,6 +1500,9 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 void CNC_voidMoveManual(CNC_t* CNC)
 {
 	char ch;
+
+	UART_voidSendString(UART_UNIT_NUMBER, "Entered manual movement mode\r\n");
+	UART_voidSendString(UART_UNIT_NUMBER, "use w, s, a, d, q, e for movement and 0 for exit\r\n");
 
 	while(1)
 	{
