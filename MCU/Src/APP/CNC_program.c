@@ -211,7 +211,7 @@ ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	/*	right left check	*/
 	if (pi->x != pf->x)
 	{
-		if (pi->x > pf->x)	/*	if line is going right	*/
+		if (pi->x < pf->x)	/*	if line is going right	*/
 			x = xr;
 		else
 			x = xl;
