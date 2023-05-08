@@ -581,12 +581,6 @@ void CNC_voidInit(CNC_t* CNC)
 
 	/*	obviously, machine've just started	*/
 	CNC->speedCurrent = 0;
-	
-	/*
-	 * Rapid speed is 600mm/min.
-	 * TODO: make this G-code editable	*/
-	CNC->config.rapidSpeedMax =
-		600.0f * (f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
 
 	/*
 	 * storing ticks per second, to avoid the overhead resulted from executing
@@ -608,15 +602,26 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 		switch (msgPtr->code)
 		{
 		case G_CODE_rapidMovement:
-			G_Code_voidCopyPoint(msgPtr);
-			//CNC_voidExecuteMovement(CNC, CNC_MovementType_rapid);
-			CNC_voidMove3Axis(
-				CNC,
-				CNC->point[0] - CNC->stepperArr[0].currentPos,
-				CNC->point[1] - CNC->stepperArr[1].currentPos,
-				CNC->point[2] - CNC->stepperArr[2].currentPos,
-				CNC->speedCurrent, 0,
-				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+			/*	if changing speed	*/
+			if (msgPtr->paramChArr[0] == 'F')
+			{
+				CNC->config.rapidSpeedMax =
+					msgPtr->paramNumArr[0] *
+					(f32)CNC->config.stepsPerLengthUnit[0] / 60.0f;
+			}
+
+			/*	if making a movement	*/
+			else
+			{
+				G_Code_voidCopyPoint(msgPtr);
+				CNC_voidMove3Axis(
+					CNC,
+					CNC->point[0] - CNC->stepperArr[0].currentPos,
+					CNC->point[1] - CNC->stepperArr[1].currentPos,
+					CNC->point[2] - CNC->stepperArr[2].currentPos,
+					CNC->speedCurrent, 0,
+					CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+			}
 			break;
 
 		case G_CODE_feedMovement:
@@ -625,7 +630,6 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			 * be executed in this function unless it has only the 'F' parameter.
 			 */
 			G_Code_voidUpdateFeedRateMax(msgPtr);
-			//CNC_voidExecuteMovement(CNC, CNC_MovementType_feed);
 			break;
 
 		case G_CODE_imperialUnits:
