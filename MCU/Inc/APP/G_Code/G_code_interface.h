@@ -26,6 +26,7 @@ enum G_CODE_M_COEDES {
 	G_CODE_setSpindleSpeedCW =		3,
 	G_CODE_setSpindleSpeedCCW =		4,
 	G_CODE_turnSpindleOff = 		5,
+	G_CODE_toolChange =				6,
 	G_CODE_setMaxFeedrate =			203,
 	G_CODE_setAcceleration =		204,
 	G_CODE_enableAutoLeveling =		420

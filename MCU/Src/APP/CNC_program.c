@@ -179,8 +179,8 @@ ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	u64 diSquared;
 
 	/*	get yu, yd, xr, xl of the rectangle containing pi	*/
-	s32 yu = (pi->y / CNC->map.dY) * CNC->map.dY;
-	s32 xl = (pi->x / CNC->map.dX) * CNC->map.dX;
+	s32 yu = (pi->y / CNC->map.dY - 1) * CNC->map.dY;
+	s32 xl = (pi->x / CNC->map.dX - 1) * CNC->map.dX;
 	s32 yd = yu + CNC->map.dY;
 	s32 xr = xl + CNC->map.dX;
 
@@ -328,8 +328,8 @@ ALWAYS_INLINE_STATIC u32 get_estimated_speed(
 	else if (dist < d1 + d2)	// reached speedMax and running by it:
 		return speedMax;
 
-	else //if (dDone < d1+d2+d3)	// decelerating:
-		return sqrt(speedMaxSquared - accelerationDoubled * dist);
+	else //if (dDone <= d1+d2+d3)	// decelerating:
+		return sqrt(speedMaxSquared - accelerationDoubled * (dist - (d1+d2)));
 }
 
 /*
@@ -508,6 +508,13 @@ static f32 get_uart_num(void)
 	char str[UART_MAX_STRLEN];
 	UART_voidReceiveUntilByte(UART_UNIT_NUMBER, str, '\r');
 	return Math_f32StrToFloat(str, 0, strlen(str) - 1);
+}
+
+static void tool_change(CNC_t* CNC)
+{
+	UART_voidSendString(UART_UNIT_NUMBER, "Entered tool change mode\r\n");
+	CNC_voidMoveManual(CNC);
+	CNC_voidChangeRamPos(CNC);
 }
 
 /*******************************************************************************
@@ -689,6 +696,10 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 
 		case G_CODE_turnSpindleOff:
 			DC_Motor_voidSetSpeed(&(CNC->spindle), 0);
+			break;
+
+		case G_CODE_toolChange:
+			tool_change(CNC);
 			break;
 
 		case G_CODE_setMaxFeedrate:
@@ -1586,7 +1597,7 @@ void CNC_voidChangeRamPos(CNC_t* CNC)
 	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
 	if (ch == 'y')
 	{
-		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter x: ");
+		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter z: ");
 		CNC->stepperArr[2].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[2];
 	}
 }

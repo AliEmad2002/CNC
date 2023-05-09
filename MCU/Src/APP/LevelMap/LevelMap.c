@@ -90,7 +90,12 @@ void LevelMap_voidStoreToFlash(LevelMap_t* map)
 	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 6), map->eX);
 	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 8), map->eY);
 
-
+	/*	store the map itself	*/
+	u32 n = map->nX * map->nY;
+	for (u32 i = 0; i < n; i++)
+	{
+		FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 10 + 2*i), map->mapArr[i]);
+	}
 
 }
 
@@ -111,13 +116,10 @@ void LevelMap_voidRestoreFromFlash(LevelMap_t* map)
 	map->eY = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(base, 8));
 
 	/*	samples	*/
-	for(u8 i = 0; i < map->nY; i++)
+	u32 n = map->nX * map->nY;
+	for (u32 i = 0; i < n; i++)
 	{
-		for(u8 j = 0; j < map->nX; j++)
-		{
-			u32 flashAddress = FPEC_WORD_ADDRESS(base + 1, i * map->nY + j);
-			map->mapArr[i * map->nX + j] = FPEC_u32ReadWord(flashAddress);
-		}
+		map->mapArr[i] = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(base, 10 + 2*i));
 	}
 
 	/*	init d's	*/
