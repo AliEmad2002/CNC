@@ -179,8 +179,16 @@ ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	u64 diSquared;
 
 	/*	get yu, yd, xr, xl of the rectangle containing pi	*/
-	s32 yu = (pi->y / CNC->map.dY - 1) * CNC->map.dY;
-	s32 xl = (pi->x / CNC->map.dX - 1) * CNC->map.dX;
+	s32 yOffset = pi->y - CNC->map.sY;
+	if (yOffset != 0)
+		yOffset--;	// to avoid getting pInter = pi, if pi was exactly on the grid.
+
+	s32 xOffset = pi->x - CNC->map.sX;
+	if (xOffset != 0)
+		xOffset--;
+
+	s32 yu = (yOffset / CNC->map.dY) * CNC->map.dY + CNC->map.sY;
+	s32 xl = (xOffset / CNC->map.dX) * CNC->map.dX + CNC->map.sX;
 	s32 yd = yu + CNC->map.dY;
 	s32 xr = xl + CNC->map.dX;
 
