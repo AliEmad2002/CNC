@@ -74,8 +74,8 @@ ALWAYS_INLINE_STATIC void parse_execute_line(CNC_t* CNC)
 	/*	if parsing failed, skip this line (comment or empty line)	*/
 	if (!parseSuccess)
 	{
-		trace_printf("Could not parse G-code line:\n");
-		trace_printf("%s\n", CNC->lineStr);
+//		trace_printf("Could not parse G-code line:\n");
+//		trace_printf("%s\n", CNC->lineStr);
 		return;
 	}
 
@@ -482,8 +482,8 @@ static void read_execute_traj_chunk(CNC_t* CNC)
 			/*	if parsing failed, skip this line (comment or empty line)	*/
 			if (!parseSuccess)
 			{
-				trace_printf("Could not parse G-code line:\n");
-				trace_printf("%s\n", CNC->lineStr);
+//				trace_printf("Could not parse G-code line:\n");
+//				trace_printf("%s\n", CNC->lineStr);
 				continue;
 			}
 
