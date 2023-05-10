@@ -83,7 +83,7 @@ ALWAYS_INLINE_STATIC void parse_execute_line(CNC_t* CNC)
 	CNC_voidExecute(CNC, &msg);
 }
 
-static void read_execute_non_traj_chunk(CNC_t* CNC)
+ALWAYS_INLINE_STATIC void read_execute_non_traj_chunk(CNC_t* CNC)
 {
 	u8 isTraj;
 
@@ -141,7 +141,7 @@ ALWAYS_INLINE_STATIC u64 get_distance_square(s32 x0, s32 x1, s32 y0, s32 y1)
 	return dSquared;
 }
 
-static u32 get_xy_d(Trajectory_Point_t* pi, Trajectory_Point_t* pf)
+ALWAYS_INLINE_STATIC u32 get_xy_d(Trajectory_Point_t* pi, Trajectory_Point_t* pf)
 {
 	s64 dx = pf->x - pi->x;
 	s64 dy = pf->y - pi->y;
@@ -154,7 +154,7 @@ static u32 get_xy_d(Trajectory_Point_t* pi, Trajectory_Point_t* pf)
  * using {x, y} of "pInter", this function interpolates "pi->z" and "pf->z" to
  * get and write "pInter->z".
  */
-static void get_z_inner(Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
+ALWAYS_INLINE_STATIC void get_z_inner(Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
 {
 	s64 dTotal = get_xy_d(pi, pf);
 	s64 d = get_xy_d(pi, pInter);
@@ -347,7 +347,7 @@ ALWAYS_INLINE_STATIC u32 get_estimated_speed(
  * Flowchart of this function:
  * 		https://github.com/AliEmad2002/CNC/issues/8#issue-1696592682
  */
-static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
+ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 {
 	/*	get initial point (current position of the machine)	*/
 	Trajectory_Point_t pi = {
@@ -413,10 +413,9 @@ static void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 	CNC->speedCurrent = pInner1.v;
 }
 
-static void execute_traj(CNC_t* CNC)
+ALWAYS_INLINE_STATIC void execute_traj(CNC_t* CNC)
 {
-	Trajectory_voidPrint(&(CNC->trajectory));
-//	while(1);
+	//Trajectory_voidPrint(&(CNC->trajectory));
 
 	Trajectory_Point_t p;
 
@@ -446,7 +445,7 @@ static void get_point_from_msg(CNC_t* CNC, Trajectory_Point_t *p, G_Code_Msg_t* 
 	}
 }
 
-static void read_execute_traj_chunk(CNC_t* CNC)
+ALWAYS_INLINE_STATIC void read_execute_traj_chunk(CNC_t* CNC)
 {
 	b8 parseSuccess;
 	u8 isTraj;
@@ -1469,11 +1468,13 @@ void CNC_voidProbe(CNC_t* CNC)
 			/*
 			 * if that step counter exceeds safety margin, execute error handler.
 			 */
-//			if (steps > MAX_PROBE_STEPS)
-//			{
-//				trace_printf("Safe porping limit reached!\n");
-//				while(1);
-//			}
+			if (steps > MAX_PROBE_STEPS)
+			{
+				trace_printf("Safe probing limit reached!\n");
+				volatile u8 stop = 1;
+				__BKPT(0);
+				while(stop);
+			}
 		}
 		
 		/*	update probe pin current state	*/
