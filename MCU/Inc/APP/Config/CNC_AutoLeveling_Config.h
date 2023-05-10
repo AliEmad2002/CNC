@@ -16,7 +16,7 @@
 /*
  * Safety parameter to avoid miss contact machine self-destruction. (in steps)
  */
-#define MAX_PROBE_STEPS						(10 * STEPS_PER_MM)		// 5mm
+#define MAX_PROBE_STEPS						(5 * STEPS_PER_MM)		// 5mm
 
 /*
  * Enough air Z-axis distance between bit and material while scanning depth map
