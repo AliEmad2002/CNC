@@ -11,6 +11,8 @@
 #include "Delay_interface.h"
 #include "diag/trace.h"
 #include <ctype.h>
+#include <cmsis_gcc.h>
+#include <string.h>
 
 /*	MCAL	*/
 #include "STK_interface.h"
@@ -1024,15 +1026,14 @@ static u32 get_next_cluster_number(SDC_t* sdc, u32 currentClusterNumber)
 
 	/*	Get next cluster number by reading FAT's integer indexed by "currentClusterNumber"	*/
 	/*	Read FAT (File Allocation Table) sector containing that entry	*/
-	successfull = SDC_u8ReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
-	if (!successfull)
-		return 0xFFFFFFFF;
+//	successfull = SDC_u8ReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
+//	if (!successfull)
+//		return 0xFFFFFFFF;
+
+	SDC_voidKeepTryingReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
 
 	SDC_NextClusterEntry_t nextClusterEntry =
 		((SDC_NextClusterEntry_t*)sdc->block)[currentClusterNumber % 128];
-
-	/*	read data pointed to by the data entry	*/
-	u32 nextClusterNumber = nextClusterEntry.indexInSector;
 
 	/*	if there's no next cluster	*/
 	u32 u32entry = ((u32*)sdc->block)[currentClusterNumber % 128];
@@ -1040,7 +1041,7 @@ static u32 get_next_cluster_number(SDC_t* sdc, u32 currentClusterNumber)
 		return 0xFFFFFFFF;
 
 	/*	clear upper 4-bits	*/
-	nextClusterNumber = nextClusterNumber & 0x0FFFFFFFF;
+	u32 nextClusterNumber = u32entry & 0x0FFFFFFFF;
 
 	return nextClusterNumber;
 }
@@ -1081,14 +1082,14 @@ static u8 find_dirData_in_directory(
 /*	Gets cluster number of a cluster given its index, and first cluster number	*/
 static u32 get_cluster_number(SDC_t* sdc, u32 firstClusterNumber, u32 clusterIndex)
 {
+	volatile u32 fst = firstClusterNumber;
 	u32 clusterNumber = firstClusterNumber;
 	for (u32 i = 0; i < clusterIndex; i++)
 	{
-		if (clusterNumber == 65)
-		{
-			__asm volatile ("bkpt 0");
-		}
 		clusterNumber = get_next_cluster_number(sdc, clusterNumber);
+
+		if (clusterNumber == 0xFFFFFFFF)
+			return 0xFFFFFFFF;
 	}
 	return clusterNumber;
 }
@@ -1254,6 +1255,9 @@ u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 {
 	u8 successfull;
 
+	if (offset / 512 != stream->bufferOffset)
+		update_buffer(stream, offset);
+
 	/*
 	 * Program will copy from "stream->buffer" and break when it reaches its end,
 	 * then, if the required length is not yet copied, an "update_buffer()" operation
@@ -1406,11 +1410,17 @@ void SDC_voidGetNextLine(SD_Stream_t* stream, char* line, u32 maxSize)
 			line[i] = '\0';
 			stream->lastReader = stream->reader;
 			stream->reader = offset + i + 1;
-			return;
+			break;
 		}
 
 		i++;
 	}
+
+//	trace_printf("Read line: %s\n", line);
+//	if (strcmp(line, "G01 X23.9336 Y18.4903") == 0)
+//	{
+//		__BKPT(0);
+//	}
 }
 
 void SDC_voidResetLineReader(SD_Stream_t* stream)

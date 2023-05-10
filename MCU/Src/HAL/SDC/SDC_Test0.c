@@ -16,6 +16,9 @@
 
 #if 0
 
+//#define RAND_TEST
+#define NORMAL_TEST
+
 /*	LIB	*/
 #include "Std_Types.h"
 #include "Bit_Math.h"
@@ -58,14 +61,14 @@ ALWAYS_INLINE_STATIC u8 set_flag(u32 offset)
 
 u32 get_rand_unused_offset()
 {
-//	static u32 i = 0;
-//	return i++;
-	while(1)
-	{
-		u32 offset = ((u32)rand()) % 10240u;
-		if (get_flag(offset) == 0)
-			return offset;
-	}
+	static u32 i = 0;
+	return i++;
+//	while(1)
+//	{
+//		u32 offset = ((u32)rand()) % 10240u;
+//		if (get_flag(offset) == 0)
+//			return offset;
+//	}
 }
 
 u32 numberOfFails = 0;
@@ -109,6 +112,25 @@ int main(void)
 	SDC_voidKeepTryingOpenStream(&s1, &sd, "S1.BIN");
 
 	u8 byte;
+
+
+	#ifdef NORMAL_TEST
+
+	for (u32 i = 0; i < s0.sizeActual; i++)
+	{
+		SDC_voidKeepTryingReadStream(&s0, i, &byte, 1);
+		SDC_voidKeepTryingWriteStream(&s1, i, &byte, 1);
+
+		if (i % (s0.sizeActual / 100) == 0)
+		{
+			static u32 p = 0;
+			trace_printf("%d\n", p++);
+		}
+	}
+
+	#endif
+
+	#ifdef RAND_TEST
 	u32 offset;
 	u32 doneCount = 0;
 
@@ -129,6 +151,7 @@ int main(void)
 			trace_printf("%d\n", i++);
 		}
 	}
+	#endif
 
 	SDC_voidKeepTryingSaveStream(&s0);
 	SDC_voidKeepTryingSaveStream(&s1);

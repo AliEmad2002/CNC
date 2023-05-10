@@ -9,7 +9,7 @@
 #define INCLUDE_HAL_SDC_SDC_CONFIG_H_
 
 #define INIT_SPI_BAUD_PRESCALER			SPI_Prescaler_256
-#define TRANS_SPI_BAUD_PRESCALER		SPI_Prescaler_256
+#define TRANS_SPI_BAUD_PRESCALER		SPI_Prescaler_64
 
 
 
