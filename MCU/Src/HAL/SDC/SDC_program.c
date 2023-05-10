@@ -1026,10 +1026,6 @@ static u32 get_next_cluster_number(SDC_t* sdc, u32 currentClusterNumber)
 
 	/*	Get next cluster number by reading FAT's integer indexed by "currentClusterNumber"	*/
 	/*	Read FAT (File Allocation Table) sector containing that entry	*/
-//	successfull = SDC_u8ReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
-//	if (!successfull)
-//		return 0xFFFFFFFF;
-
 	SDC_voidKeepTryingReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
 
 	SDC_NextClusterEntry_t nextClusterEntry =
