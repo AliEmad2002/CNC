@@ -1302,6 +1302,9 @@ u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 	/*	TODO: if written with more than original size, update size field in the data record on the card	*/
 	u8 successfull;
 
+	if (offset / 512 != stream->bufferOffset)
+		update_buffer(stream, offset);
+
 	/*
 	 * Program will copy to "stream->buffer" and break when it reaches its end,
 	 * then, if the required length is not yet copied, an "update_buffer()" operation
