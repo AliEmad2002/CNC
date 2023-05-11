@@ -181,11 +181,22 @@ ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
 	/*	get yu, yd, xr, xl of the rectangle containing pi	*/
 	s32 yOffset = pi->y - CNC->map.sY;
 	if (yOffset != 0)
-		yOffset--;	// to avoid getting pInter = pi, if pi was exactly on the grid.
+	{
+		// to avoid getting pInter = pi, if pi was exactly on the grid:
+		if (pi->y > pf->y)	/*	if line is going up	*/
+			yOffset--;
+		else if (pi->y < pf->y)
+			yOffset++;
+	}
 
 	s32 xOffset = pi->x - CNC->map.sX;
 	if (xOffset != 0)
-		xOffset--;
+	{
+		if (pi->x < pf->x)
+			xOffset++;
+		else if (pi->x > pf->x)
+			xOffset--;
+	}
 
 	s32 yu = (yOffset / CNC->map.dY) * CNC->map.dY + CNC->map.sY;
 	s32 xl = (xOffset / CNC->map.dX) * CNC->map.dX + CNC->map.sX;
@@ -337,7 +348,16 @@ ALWAYS_INLINE_STATIC u32 get_estimated_speed(
 		return speedMax;
 
 	else //if (dDone <= d1+d2+d3)	// decelerating:
-		return sqrt(speedMaxSquared - accelerationDoubled * (dist - (d1+d2)));
+	{
+		s64 speedSquared = speedMaxSquared - accelerationDoubled * (dist - (d1+d2));
+
+		/*	would be negative in case of small precision error	*/
+		if (speedSquared < 0)
+			speedSquared = 0;
+
+		return sqrt(speedSquared);
+	}
+
 }
 
 /*
@@ -391,6 +411,8 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 
 		s32 zOffset0 = LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
 		s32 zOffset1 = LevelMap_s32GetDepthAt(&(CNC->map), pInner1.x, pInner1.y);
+
+		trace_printf("%d, %d, %d, %d\n",pInner1.x, pInner1.y, pInner1.z, pInner1.v);
 
 		CNC_voidMove3Axis(
 			CNC,
@@ -1536,44 +1558,38 @@ void CNC_voidMoveManual(CNC_t* CNC)
 		{
 		case 'w':
 			CNC_voidMove3Axis(
-				CNC, 0, -200, 0,
-				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
-				CNC->config.rapidAccel);
+				CNC, 0, -8000, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 's':
 			CNC_voidMove3Axis(
-				CNC, 0, 200, 0,
-				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
-				CNC->config.rapidAccel);
+				CNC, 0, 8000, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'a':
 			CNC_voidMove3Axis(
-				CNC, -200, 0, 0,
-				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
-				CNC->config.rapidAccel);
+				CNC, -8000, 0, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'd':
 			CNC_voidMove3Axis(
-				CNC, 200, 0, 0,
-				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
-				CNC->config.rapidAccel);
+				CNC, 8000, 0, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'q':
 			CNC_voidMove3Axis(
 				CNC, 0, 0, -200,
-				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
-				CNC->config.rapidAccel);
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'e':
 			CNC_voidMove3Axis(
 				CNC, 0, 0, 200,
-				CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax, CNC->config.rapidSpeedMax,
-				CNC->config.rapidAccel);
+				8000, 8000, 8000, 8000);
 			break;
 
 		case '0':
@@ -1625,6 +1641,8 @@ void CNC_voidRunGcodeFile(CNC_t* CNC)
 		/*	Read and execute trajectory chunk (starting from the first un-read line)	*/
 		read_execute_traj_chunk(CNC);
 	}
+
+	SDC_voidResetLineReader(&(CNC->gcodeFile));
 }
 
 u8 CNC_u8AskNew(CNC_t* CNC)
