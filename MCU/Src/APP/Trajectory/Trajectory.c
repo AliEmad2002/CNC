@@ -19,8 +19,8 @@
 /*******************************************************************************
  * Static (private) functions:
  ******************************************************************************/
-/*	returns sin(theta_b/2)	*/
-ALWAYS_INLINE_STATIC f32 get_sin_half_theta_b(Trajectory_Point_t* a, Trajectory_Point_t* b, Trajectory_Point_t* c)
+/*	returns cos(theta_b/2)	*/
+ALWAYS_INLINE_STATIC f32 get_cos_half_theta_b(Trajectory_Point_t* a, Trajectory_Point_t* b, Trajectory_Point_t* c)
 {
 	volatile s32 xa = a->x;
 	volatile s32 xb = b->x;
@@ -30,10 +30,6 @@ ALWAYS_INLINE_STATIC f32 get_sin_half_theta_b(Trajectory_Point_t* a, Trajectory_
 	volatile s32 yb = b->y;
 	volatile s32 yc = c->y;
 
-//	f32 m1 = (float)(ya - yb) / (f32)(xa - xb);
-//	f32 m2 = (float)(yb - yc) / (f32)(xb - xc);
-//	f32 tanTheta = fabs((m1 - m2) / (1.0f + m1*m2));
-
 	volatile s64 dxAB = xa - xb;
 	volatile s64 dyAB = ya - yb;
 	volatile s64 dxBC = xb - xc;
@@ -42,25 +38,25 @@ ALWAYS_INLINE_STATIC f32 get_sin_half_theta_b(Trajectory_Point_t* a, Trajectory_
 	volatile s64 num = dyAB * dxBC - dyBC * dxAB;
 	volatile s64 den = dxAB * dxBC - dyBC * dyAB;
 
-	volatile f32 cosTheta;
+	volatile f32 cosThetaTT;
 	if (den == 0)
 	{
-		cosTheta = 0.0f;
+		cosThetaTT = 0.0f;
 	}
 	else
 	{
-		volatile f32 tanTheta = fabs((f32)num / (f32)den);
-		cosTheta = sqrt(1.0f / (1.0f + tanTheta*tanTheta));
+		volatile f32 tanThetaTT = fabs((f32)num / (f32)den);
+		cosThetaTT = sqrt(1.0f / (1.0f + tanThetaTT*tanThetaTT));
 	}
 
-	volatile f32 sinHalfTheta = sqrt((1.0f - cosTheta) / 2.0f);
-	return sinHalfTheta;
+	volatile f32 cosHalfThetaTT = sqrt((1.0f + cosThetaTT) / 2.0f);
+	return cosHalfThetaTT;
 }
 
 /*	returns speed of point b, based on maximum speed and angle between the lines ab, bc	*/
 static u32 get_vb(Trajectory_t* traj, Trajectory_Point_t* a, Trajectory_Point_t* b, Trajectory_Point_t* c)
 {
-	return (u32)(((f32)(traj->feedrateMax)) * get_sin_half_theta_b(a, b, c));
+	return (u32)(((f32)(traj->feedrateMax)) * get_cos_half_theta_b(a, b, c));
 }
 
 /*	returns magnitude of distance between two points	*/

@@ -437,7 +437,7 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 
 ALWAYS_INLINE_STATIC void execute_traj(CNC_t* CNC)
 {
-	//Trajectory_voidPrint(&(CNC->trajectory));
+	Trajectory_voidPrint(&(CNC->trajectory));
 
 	Trajectory_Point_t p;
 
