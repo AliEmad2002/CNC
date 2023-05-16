@@ -648,6 +648,12 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			else
 			{
 				G_Code_voidCopyPoint(msgPtr);
+
+				if (CNC->config.autoLevelingEnabled == 1)
+				{
+					CNC->point[2] += LevelMap_s32GetDepthAt(&(CNC->map), CNC->point[0], CNC->point[1]);
+				}
+
 				CNC_voidMove3Axis(
 					CNC,
 					CNC->point[0] - CNC->stepperArr[0].currentPos,
