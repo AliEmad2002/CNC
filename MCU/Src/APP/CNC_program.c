@@ -412,7 +412,7 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 		s32 zOffset0 = LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
 		s32 zOffset1 = LevelMap_s32GetDepthAt(&(CNC->map), pInner1.x, pInner1.y);
 
-		trace_printf("%d, %d, %d, %d\n",pInner1.x, pInner1.y, pInner1.z, pInner1.v);
+		//trace_printf("%d, %d, %d, %d\n",pInner1.x, pInner1.y, pInner1.z, pInner1.v);
 
 		CNC_voidMove3Axis(
 			CNC,
@@ -524,9 +524,7 @@ ALWAYS_INLINE_STATIC void read_execute_traj_chunk(CNC_t* CNC)
 	}
 
 	/*	Plan the read trajectory	*/
-	//u64 s = STK_u64GetElapsedTicks();
 	Trajectory_voidPlan(&(CNC->trajectory));
-	//volatile u64 t = STK_u64GetElapsedTicks() - s;
 
 	/*	Execute it	*/
 	execute_traj(CNC);
