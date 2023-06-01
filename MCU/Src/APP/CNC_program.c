@@ -227,16 +227,22 @@ ALWAYS_INLINE_STATIC void get_speed_estimation_params(
 	s64 yDisplacement = pf->y - pi->y;
 	s64 zDisplacement = pf->z - pi->z;
 
-	u32 displacementMagnitude = sqrt(
+	s32 displacementMagnitude = sqrt(
 	xDisplacement * xDisplacement +
 	yDisplacement * yDisplacement +
 	zDisplacement * zDisplacement
 	);
 
-	u64 speed1Squared = (u64)pi->v * (u64)pi->v;
-	u64 speed2Squared = (u64)pf->v * (u64)pf->v;
-	u64 speedMaxSquared = (u64)traj->feedrateMax * (u64)traj->feedrateMax;
-	u32 accelerationDoubled = 2 * traj->feedAccel;
+	if (pi->v > traj->feedrateMax)
+		pi->v = traj->feedrateMax;
+
+	if (pf->v > traj->feedrateMax)
+		pf->v = traj->feedrateMax;
+
+	s64 speed1Squared = (s64)pi->v * (s64)pi->v;
+	s64 speed2Squared = (s64)pf->v * (s64)pf->v;
+	s64 speedMaxSquared = (s64)traj->feedrateMax * (s64)traj->feedrateMax;
+	s32 accelerationDoubled = 2 * traj->feedAccel;
 
 	s32 d1 =
 		speedMaxSquared / accelerationDoubled -
@@ -403,6 +409,7 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 ALWAYS_INLINE_STATIC void execute_traj(CNC_t* CNC)
 {
 	//Trajectory_voidPrint(&(CNC->trajectory));
+	//asm volatile ("bkpt #0");
 
 	Trajectory_Point_t p;
 
@@ -504,6 +511,10 @@ static f32 get_uart_num(void)
 
 static void tool_change(CNC_t* CNC)
 {
+#if SIMULATION_ON
+	return;
+#endif
+
 	UART_voidSendString(UART_UNIT_NUMBER, "Entered tool change mode\r\n");
 	CNC_voidMoveManual(CNC);
 	CNC_voidChangeRamPos(CNC);
@@ -1521,6 +1532,10 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 
 void CNC_voidMoveManual(CNC_t* CNC)
 {
+#if SIMULATION_ON
+	return;
+#endif
+
 	char ch;
 
 	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
@@ -1578,6 +1593,10 @@ void CNC_voidMoveManual(CNC_t* CNC)
 
 void CNC_voidChangeRamPos(CNC_t* CNC)
 {
+#if SIMULATION_ON
+	return;
+#endif
+
 	char ch;
 
 	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);

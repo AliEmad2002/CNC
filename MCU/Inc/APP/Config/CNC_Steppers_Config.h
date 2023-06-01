@@ -30,7 +30,7 @@
 /*	steps per mm (initial, and could be changed by g-code later)	*/
 #define STEPS_PER_MM						800
 
-/*	minimum operating speed	*/
+/*	minimum operating speed (in steps per second)	*/
 #define SPEED_MIN							STEPS_PER_MM
 
 

@@ -27,6 +27,12 @@ typedef struct
 	
 	/*	current position of the object (in steps)	*/
 	s32 currentPos;
+
+	/***************
+	 * Following parameters are used for testing purposes.
+	 ***************/
+	s32 currentSpeed;
+	s32 currentAccel;
 }Stepper_t;
 
 typedef enum{

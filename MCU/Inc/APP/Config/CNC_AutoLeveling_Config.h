@@ -33,7 +33,7 @@
 #define AL_GRID_TRIMMER						20
 
 /*	probing speed inverse	*/
-#define AL_SLOW_SPEED_TICKS_PER_STEP		1600*25
+#define AL_SLOW_SPEED_TICKS_PER_STEP		1600*10
 
 #define AUTO_LEVELING_FLASH_BASE_PAGE		55
 
