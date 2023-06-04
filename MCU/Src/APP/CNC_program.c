@@ -171,88 +171,53 @@ ALWAYS_INLINE_STATIC void get_z_inner(Trajectory_Point_t* pi, Trajectory_Point_t
 	pInter->z = pi->z + (s32)offset;
 }
 
-ALWAYS_INLINE_STATIC void get_first_intersection_with_level_grid(
+ALWAYS_INLINE_STATIC void get_next_segment(
 	CNC_t* CNC,
 	Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
 {
-	s32 y, x;
-	u64 diSquared;
+	/*	Move small distance "delta" in the axis of most displacement	*/
+	u32 dx = abs(pf->x - pi->x);
+	u32 dy = abs(pf->y - pi->y);
 
-	/*	get yu, yd, xr, xl of the rectangle containing pi	*/
-	s32 yOffset = pi->y - CNC->map.sY;
-	if (yOffset != 0)
+	if (dx > dy)
 	{
-		// to avoid getting pInter = pi, if pi was exactly on the grid:
-		if (pi->y > pf->y)	/*	if line is going up	*/
-			yOffset--;
-		else if (pi->y < pf->y)
-			yOffset++;
-	}
-
-	s32 xOffset = pi->x - CNC->map.sX;
-	if (xOffset != 0)
-	{
-		if (pi->x < pf->x)
-			xOffset++;
-		else if (pi->x > pf->x)
-			xOffset--;
-	}
-
-	s32 yu = (yOffset / CNC->map.dY) * CNC->map.dY + CNC->map.sY;
-	s32 xl = (xOffset / CNC->map.dX) * CNC->map.dX + CNC->map.sX;
-	s32 yd = yu + CNC->map.dY;
-	s32 xr = xl + CNC->map.dX;
-
-	/*	get square of the line length	*/
-	u64 dSquared = get_distance_square(pf->x, pi->x, pf->y, pi->y);
-
-	/*	up / down check	*/
-	if (pi->y != pf->y)
-	{
-		if (pi->y > pf->y)	/*	if line is going up	*/
-			y = yu;
-		else
-			y = yd;
-
-		x = get_x_on_line(pi, pf, y);
-		diSquared = get_distance_square(pi->x, x, pi->y, y);
-
-		/*	 if point is on the rectangle's Perimeter, and is also inside the line: {pi, pf}	*/
-		if (xl <= x  &&  x <= xr  &&  diSquared <= dSquared)
+		if (pf->x > pi->x)
 		{
-			pInter->x = x;
-			pInter->y = y;
-			get_z_inner(pi, pf, pInter);
-			return;
+			pInter->x = pi->x + AL_GRID_TRIMMER;
+			if (pInter->x > pf->x)
+				pInter->x = pf->x;
 		}
-	}
-
-	/*	right left check	*/
-	if (pi->x != pf->x)
-	{
-		if (pi->x < pf->x)	/*	if line is going right	*/
-			x = xr;
 		else
-			x = xl;
-
-		y = get_y_on_line(pi, pf, x);
-		diSquared = get_distance_square(pi->x, x, pi->y, y);
-
-		/*	 if point is on the rectangle's Perimeter, and is also inside the line: {pi, pf}	*/
-		if (yu <= y  &&  y <= yd  &&  diSquared <= dSquared)
 		{
-			pInter->x = x;
-			pInter->y = y;
-			get_z_inner(pi, pf, pInter);
-			return;
+			pInter->x = pi->x - AL_GRID_TRIMMER;
+			if (pInter->x < pf->x)
+				pInter->x = pf->x;
 		}
+
+		pInter->y = get_y_on_line(pi, pf, pInter->x);
 	}
 
-	/*	Otherwise, pInter = pf	*/
-	pInter->x = pf->x;
-	pInter->y = pf->y;
-	pInter->z = pf->z;
+	else
+	{
+		if (pf->y > pi->y)
+		{
+			pInter->y = pi->y + AL_GRID_TRIMMER;
+			if (pInter->y > pf->y)
+				pInter->y = pf->y;
+		}
+		else
+		{
+			pInter->y = pi->y - AL_GRID_TRIMMER;
+			if (pInter->y < pf->y)
+				pInter->y = pf->y;
+		}
+
+		pInter->x = get_x_on_line(pi, pf, pInter->y);
+	}
+
+	get_z_inner(pi, pf, pInter);
 }
+
 
 ALWAYS_INLINE_STATIC void get_speed_estimation_params(
 	Trajectory_t* traj, Trajectory_Point_t* pi, Trajectory_Point_t* pf,
@@ -392,7 +357,7 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 		return;
 	}
 
-	/*	otherwise, movement is segmented into smaller movements	*/
+	/*	otherwise, movement is segmented/trimmed into smaller movements	*/
 	/*	prepare speed estimation params	*/
 	u32 speedMax, d1, d2;
 	get_speed_estimation_params(
@@ -404,7 +369,7 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 
 	while(1)
 	{
-		get_first_intersection_with_level_grid(CNC, &pInner0, pf, &pInner1);
+		get_next_segment(CNC, &pInner0, pf, &pInner1);
 
 		pInner1.v = get_estimated_speed(
 			&pi, &pInner1, CNC->trajectory.feedAccel, speedMax, d1, d2);
@@ -1551,6 +1516,7 @@ void CNC_voidMoveManual(CNC_t* CNC)
 {
 	char ch;
 
+	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 	UART_voidSendString(UART_UNIT_NUMBER, "Entered manual movement mode\r\n");
 	UART_voidSendString(UART_UNIT_NUMBER, "use w, s, a, d, q, e for movement and 0 for exit\r\n");
 
@@ -1597,6 +1563,7 @@ void CNC_voidMoveManual(CNC_t* CNC)
 			break;
 
 		case '0':
+			UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 			return;
 		}
 	}
@@ -1605,6 +1572,8 @@ void CNC_voidMoveManual(CNC_t* CNC)
 void CNC_voidChangeRamPos(CNC_t* CNC)
 {
 	char ch;
+
+	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 
 	UART_voidSendString(UART_UNIT_NUMBER, "Change x-RAM pos? (y/else): ");
 	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
@@ -1629,6 +1598,8 @@ void CNC_voidChangeRamPos(CNC_t* CNC)
 		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter z: ");
 		CNC->stepperArr[2].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[2];
 	}
+
+	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 }
 
 void CNC_voidRunGcodeFile(CNC_t* CNC)
@@ -1653,8 +1624,13 @@ u8 CNC_u8AskNew(CNC_t* CNC)
 {
 	char ch;
 
+	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
+
 	UART_voidSendString(UART_UNIT_NUMBER, "Make new operation from \"FILE.NC\"? (y/else): ");
 	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+
+	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
+
 	return (ch == 'y');
 }
 
