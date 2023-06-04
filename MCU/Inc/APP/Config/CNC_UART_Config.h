@@ -18,21 +18,6 @@
 
 #define UART_BAUD_RATE					115200
 
-/******************************************************************************
- * 	Buffer configuration:
- ******************************************************************************/
-#define UART_MAX_STRLEN						16	// bytes
-//#define LOOK_AHEAD_STACK_LEN				64	//	messages
-
-/******************************************************************************
- * 	Computer handshake:
- ******************************************************************************/
-//#define UART_COMPUTER_ACK_BYTE			';'
-//
-//#define UART_COMPUTER_TERMINATOR_BYTE	';'
-//
-//#define UART_COMPUTER_RESEND_BYTE		'+'
-
-
+#define UART_MAX_STRLEN					64
 
 #endif /* INCLUDE_APP_CONFIG_CNC_UART_CONFIG_H_ */
