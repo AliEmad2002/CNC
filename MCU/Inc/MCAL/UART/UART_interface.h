@@ -139,4 +139,6 @@ void UART_voidEnableNoiseSelectionFlag(UART_UnitNumber_t UARTn);
 
 void UART_voidDisableNoiseSelectionFlag(UART_UnitNumber_t UARTn);
 
+b8 UART_b8GetRxFlag(UART_UnitNumber_t UARTn);
+
 #endif /* _UART_INTERFACE_H_ */

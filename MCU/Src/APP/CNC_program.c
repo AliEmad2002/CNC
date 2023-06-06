@@ -133,13 +133,13 @@ ALWAYS_INLINE_STATIC s32 get_y_on_line(Trajectory_Point_t* pi, Trajectory_Point_
 	return y;
 }
 
-ALWAYS_INLINE_STATIC u64 get_distance_square(s32 x0, s32 x1, s32 y0, s32 y1)
-{
-	s64 dx = x1 - x0;
-	s64 dy = y1 - y0;
-	u64 dSquared = dx * dx + dy * dy;
-	return dSquared;
-}
+//ALWAYS_INLINE_STATIC u64 get_distance_square(s32 x0, s32 x1, s32 y0, s32 y1)
+//{
+//	s64 dx = x1 - x0;
+//	s64 dy = y1 - y0;
+//	u64 dSquared = dx * dx + dy * dy;
+//	return dSquared;
+//}
 
 ALWAYS_INLINE_STATIC u32 get_xy_d(Trajectory_Point_t* pi, Trajectory_Point_t* pf)
 {
@@ -172,7 +172,6 @@ ALWAYS_INLINE_STATIC void get_z_inner(Trajectory_Point_t* pi, Trajectory_Point_t
 }
 
 ALWAYS_INLINE_STATIC void get_next_segment(
-	CNC_t* CNC,
 	Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
 {
 	/*	Move small distance "delta" in the axis of most displacement	*/
@@ -369,7 +368,7 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 
 	while(1)
 	{
-		get_next_segment(CNC, &pInner0, pf, &pInner1);
+		get_next_segment(&pInner0, pf, &pInner1);
 
 		pInner1.v = get_estimated_speed(
 			&pi, &pInner1, CNC->trajectory.feedAccel, speedMax, d1, d2);
@@ -1620,7 +1619,7 @@ void CNC_voidRunGcodeFile(CNC_t* CNC)
 	SDC_voidResetLineReader(&(CNC->gcodeFile));
 }
 
-u8 CNC_u8AskNew(CNC_t* CNC)
+u8 CNC_u8AskNew()
 {
 	char ch;
 

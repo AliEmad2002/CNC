@@ -19,7 +19,10 @@
 #include "CNC_interface.h"
 #include "CNC_Init_MCAL.h"
 
-//void steppers_test(void);
+#if SIMULATION_ON
+#include "UART_interface.h"
+#include <diag/trace.h>
+#endif
 
 CNC_t CNC;
 
@@ -34,6 +37,7 @@ int main(void)
 	/*	init CNC object	*/
 	CNC_voidInit(&CNC);
 
+#if !SIMULATION_ON
 	while(1)
 	{
 		/*	Make manual movement	*/
@@ -51,27 +55,14 @@ int main(void)
 		else
 			break;
 	}
+#else
+	/*	wait for the first MATLAB request to start simulation	*/
+	while(!UART_b8GetRxFlag(UART_UNIT_NUMBER));
+
+	/*	Run G-code file from the SD-card	*/
+	CNC_voidRunGcodeFile(&CNC);
+	trace_printf("Done!\n");
+#endif
 
 	while(1);
 }
-
-//void steppers_test(void)
-//{
-//	volatile u8 x = 0;
-//	volatile u8 y = 0;
-//	volatile u8 z = 0;
-//	volatile u8 dirX = 0;
-//	volatile u8 dirY = 0;
-//	volatile u8 dirZ = 0;
-//	volatile u32 delay = 1;
-//	while (1)
-//	{
-//		if (x)
-//			Stepper_voidStep(CNC.stepperArr, dirX, STK_u64GetElapsedTicks());
-//		if (y)
-//			Stepper_voidStep(CNC.stepperArr+1, dirY, STK_u64GetElapsedTicks());
-//		if (z)
-//			Stepper_voidStep(CNC.stepperArr+2, dirZ, STK_u64GetElapsedTicks());
-//		Delay_voidBlockingDelayMs(delay);
-//	}
-//}

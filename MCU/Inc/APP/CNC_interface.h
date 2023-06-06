@@ -164,6 +164,6 @@ void CNC_voidRunGcodeFile(CNC_t* CNC);
  * Returns 1 if they do. 0 otherwise.
  */
  /*	TODO: use USB or debugger "printf()" and "scanf()", do HW UI later	*/
-u8 CNC_u8AskNew(CNC_t* CNC);
+u8 CNC_u8AskNew();
 
 #endif /* CNC_INTERFACE_H_ */

@@ -9,6 +9,7 @@
 #include "Std_Types.h"
 #include "Bit_Math.h"
 #include <math.h>
+#include <diag/trace.h>
 
 /*	HAL	*/
 #include "SDC_interface.h"
@@ -53,10 +54,42 @@ ALWAYS_INLINE_STATIC f32 get_cos_half_theta_b(Trajectory_Point_t* a, Trajectory_
 	return cosHalfThetaTT;
 }
 
+static s8 get_dir(s32 di, s32 df)
+{
+	if (di > df)		return -1;
+	else if (di < df)	return 1;
+	else				return 0;
+}
+
+/*
+ * Edge case:
+ * 		if one or both axis invert its direction at point 'b' or stops moving,
+ * 		speed is zeroed to minimize turning acceleration, thus minimizing turning
+ * 		force.
+ */
+static u8 is_speed_zeroed_at_b(Trajectory_Point_t* a, Trajectory_Point_t* b, Trajectory_Point_t* c)
+{
+	s8 xDirAB = get_dir(a->x, b->x);
+	s8 yDirAB = get_dir(a->y, b->y);
+
+	s8 xDirBC = get_dir(b->x, c->x);
+	s8 yDirBC = get_dir(b->y, c->y);
+
+	if (xDirAB != xDirBC || yDirAB != yDirBC)
+		return 1;
+
+	else
+		return 0;
+}
+
 /*	returns speed of point b, based on maximum speed and angle between the lines ab, bc	*/
 static u32 get_vb(Trajectory_t* traj, Trajectory_Point_t* a, Trajectory_Point_t* b, Trajectory_Point_t* c)
 {
-	return (u32)(((f32)(traj->feedrateMax)) * get_cos_half_theta_b(a, b, c));
+	if (is_speed_zeroed_at_b(a, b, c))
+		return 0;
+
+	else
+		return (u32)(((f32)(traj->feedrateMax)) * get_cos_half_theta_b(a, b, c));
 }
 
 /*	returns magnitude of distance between two points	*/
@@ -97,7 +130,7 @@ static u8 is_valid_transition(Trajectory_t* traj, Trajectory_Point_t* a, Traject
 	else if (vb < va)
 	{
 		s64 vfSquared = va * va - 2 * accel * x;
-		if (vfSquared <= vb * vb)
+		if (vfSquared <= (s64)(vb * vb))
 			return 1;
 		else
 			return 0;

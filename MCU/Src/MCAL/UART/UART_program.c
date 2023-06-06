@@ -522,7 +522,10 @@ void USART3_IRQHandler(void)
 	}
 }
 
-
+b8 UART_b8GetRxFlag(UART_UnitNumber_t UARTn)
+{
+	return GET_BIT(UART[UARTn]->SR, 5);
+}
 
 
 

@@ -150,7 +150,7 @@ static u8 get_r1(SDC_t* sdc, SDC_R1_t* response)
 			if (GET_BIT(data, 7) != 0) // if MSB of "data" is the start bit
 			{
 				//trace_printf("start bit odd case has tto be implemented");
-				//__asm volatile ("bkpt 0");
+				__asm volatile ("bkpt 0");
 				return 0;
 			}
 

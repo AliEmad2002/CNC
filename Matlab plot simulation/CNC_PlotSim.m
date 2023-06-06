@@ -12,7 +12,7 @@ z_max = 100*800;
 z_material = 0;
 z_updaterate = 1000; % number of iterations to update z-axis color
 
-port = "COM11";
+port = "COM15";
 baudrate = 115200;
 
 %% prepare plot parameters:
@@ -36,7 +36,7 @@ while 1
             h_material = animatedline;
             isFirstAfterAir = 0;
         end 
-        addpoints(h_material, x+i, y+i);
+        addpoints(h_material, x, y);
        
     % otherwise, z-axis is in the air, update the air point:
     else
@@ -47,7 +47,7 @@ while 1
             c = (z-z_min)/(z_max-z_min);
             h_air = animatedline("Color", [c 1 1], "Marker", '.');
         end
-        addpoints(h_air, x+i, y+i);
+        addpoints(h_air, x, y);
     end
     drawnow limitrate;
     i = i + 1;
