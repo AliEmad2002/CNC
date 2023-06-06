@@ -17,11 +17,11 @@ baudrate = 115200;
 
 %% prepare plot parameters:
 h_material = animatedline;
-h_air = animatedline("Color", [1 1 1], "Marker", ".");
+h_air = animatedline("Color", [1 1 1], "Marker", "*");
 axis([x_min, x_max, y_min, y_max]);
 
 %% Init UART connection:
-MCUserial = serialport(port, baudrate, "Timeout",5);
+MCUserial = serialport(port, baudrate, "Timeout",20);
 
 %% read from MCU and draw:
 i = 0;
@@ -36,19 +36,18 @@ while 1
             h_material = animatedline;
             isFirstAfterAir = 0;
         end 
-        addpoints(h_material, x, y);
-       
-    % otherwise, z-axis is in the air, update the air point:
+        addpoints(h_material, x, y);       
     else
+        % otherwise, z-axis is in the air, update the air point:
         isFirstAfterAir = 1;
         if (i == z_updaterate)
             i = 0;
-            delete(h_air);
-            c = (z-z_min)/(z_max-z_min);
-            h_air = animatedline("Color", [c 1 1], "Marker", '.');
+            %delete(h_air);
+            %c = (z-z_min)/(z_max-z_min);
+            %h_air = animatedline("Color", [c 1 1], "Marker", '*');
         end
-        addpoints(h_air, x, y);
     end
+    %addpoints(h_air, x, y);
     drawnow limitrate;
     i = i + 1;
 end

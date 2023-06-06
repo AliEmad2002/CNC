@@ -38,7 +38,8 @@
 
 static u64 ticksPerSecond;
 
-static s32 mapArr[400];
+#define MAP_LEN		400
+static s32 mapArr[MAP_LEN];
 
 /*******************************************************************************
  * Static (private) functions:
@@ -112,7 +113,7 @@ ALWAYS_INLINE_STATIC void read_execute_non_traj_chunk(CNC_t* CNC)
 }
 
 /*	Given y value, it returns x value on the line: {pi, pf}	*/
-ALWAYS_INLINE_STATIC s32 get_x_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, u32 y)
+ALWAYS_INLINE_STATIC s32 get_x_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, s32 y)
 {
 	s64 d1 = y - pi->y;
 	s64 d2 = pf->x - pi->x;
@@ -123,7 +124,7 @@ ALWAYS_INLINE_STATIC s32 get_x_on_line(Trajectory_Point_t* pi, Trajectory_Point_
 }
 
 /*	Given x value, it returns y value on the line: {pi, pf}	*/
-ALWAYS_INLINE_STATIC s32 get_y_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, u32 x)
+ALWAYS_INLINE_STATIC s32 get_y_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, s32 x)
 {
 	s64 d1 = x - pi->x;
 	s64 d2 = pf->y - pi->y;
@@ -724,6 +725,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 
 void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 {
+#if !SIMULATION_ON
 	/**
 	 * initially probe on (x, y) = (0, 0), and re-set z-displacement variable.
 	 * (to achieve re-usability of the same depth map with multiple tools, see
@@ -744,6 +746,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 
 	/*	probe	*/
 	CNC_voidProbe(CNC);
+#endif
 
 	/*	reset z-displacement variable	*/
 	CNC->stepperArr[Z].currentPos = 0;
@@ -763,6 +766,10 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	
 	LevelMap_voidInit(&(CNC->map));
 
+#if SIMULATION_ON
+	for (u32 i = 0; i < MAP_LEN; i++)
+		CNC->map.mapArr[i] = 0;
+#else
 	/**	start probing/sampling	**/
 	u8 i = 0;
 	u8 j = 0;
@@ -851,6 +858,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	CNC_voidMove3Axis(
 		CNC, 0, 0, -CNC->stepperArr[Z].currentPos, 0, 0,
 		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+#endif
 
 	/**	store in flash	**/
 	LevelMap_voidStoreToFlash(&(CNC->map));
@@ -1050,7 +1058,7 @@ void CNC_voidMove3Axis(
 	 **/
 
 	/*	get displacement of the maximumly moving axis	*/
-	u32 mostDisplacementAbs = (u32)displacementsAbs[axisSorted[0]];
+	s32 mostDisplacementAbs = displacementsAbs[axisSorted[0]];
 	
 	/*	time between steps of the maximumly moving axis	*/
 	u64 deltaTMost =
@@ -1131,7 +1139,7 @@ void CNC_voidMove3Axis(
 		((u64)d1 * (u64)displacementsAbs[axisSorted[2]]) /
 		displacementMagnitude;
 		
-	while(dDoneMost < dTotalMost	&&		dDoneMost < mostDisplacementAbs)
+	while(dDoneMost < dTotalMost	&&		(s32)dDoneMost < mostDisplacementAbs)
 	{
 		/*	take timestamp	*/
 		timeCurrent = STK_u64GetElapsedTicks();
@@ -1238,7 +1246,7 @@ void CNC_voidMove3Axis(
 		((u64)d2 * (u64)displacementsAbs[axisSorted[2]]) /
 		displacementMagnitude;
 	
-	while(dDoneMost < dTotalMost		&&		dDoneMost < mostDisplacementAbs)
+	while(dDoneMost < dTotalMost		&&		(s32)dDoneMost < mostDisplacementAbs)
 	{
 		timeCurrent = STK_u64GetElapsedTicks();
 
@@ -1304,7 +1312,7 @@ void CNC_voidMove3Axis(
 		((u64)d3 * (u64)displacementsAbs[axisSorted[2]]) /
 		displacementMagnitude;
 	
-	while(dDoneMost < dTotalMost	&&		dDoneMost < mostDisplacementAbs)
+	while(dDoneMost < dTotalMost	&&		(s32)dDoneMost < mostDisplacementAbs)
 	{
 		timeCurrent = STK_u64GetElapsedTicks();
 

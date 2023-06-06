@@ -21,4 +21,6 @@ void CNC_voidInitUART(void);
 
 void CNC_voidInitSysTick(void);
 
+void CNC_voidInitNVIC(void);
+
 #endif /* INCLUDE_APP_INIT_CNC_INIT_MCAL_H_ */

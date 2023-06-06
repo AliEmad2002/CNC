@@ -17,6 +17,7 @@
 #include "Target_config.h"
 
 /*	MCAL	*/
+#include "SCB_interface.h"
 #include "GPIO_interface.h"
 #include "STK_interface.h"
 #include "UART_interface.h"
@@ -40,6 +41,8 @@ void CNC_voidInitMCAL(void)
 	CNC_voidInitFPU();
 
 	CNC_voidInitRCC();
+
+	CNC_voidInitNVIC();
 
 	CNC_voidInitSysTick();
 
@@ -109,4 +112,11 @@ void CNC_voidInitSysTick(void)
 	STK_voidStartTickMeasure(STK_TickMeasureType_OverflowCount);
 }
 
+void CNC_voidInitNVIC(void)
+{
+	SCB_voidSetPriorityGroupsAndSubGroupsNumber(SCB_PRIGROUP_group4_sub4);
 
+	NVIC_voidSetInterruptPriority(NVIC_Interrupt_Systick, 0, 0);
+	NVIC_voidSetInterruptPriority(NVIC_Interrupt_USART1, 1, 0);
+	NVIC_voidSetInterruptPriority(NVIC_Interrupt_USART2, 1, 0);
+}
