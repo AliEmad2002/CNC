@@ -15,6 +15,7 @@
 #include <string.h>
 
 /*	MCAL	*/
+#include "NVIC_interface.h"
 #include "STK_interface.h"
 #include "SPI_interface.h"
 #include "GPIO_interface.h"
@@ -670,13 +671,14 @@ u8 SDC_u8WriteBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 	SPI_voidTransmitData(sdc->spiUnitNumber, 0xFF);
 
 	/**	send the data packet	**/
+	NVIC_voidDisableInterrupt(NVIC_Interrupt_USART1);
 	/*	send data token	*/
 	SPI_voidTransmitData(sdc->spiUnitNumber, 0b11111110);
 	/*	send data block	*/
 	SPI_voidTransmitArrLsFirst(sdc->spiUnitNumber, block, 512);
 	/*	send CRC	*/
 	SPI_voidTransmitArrMsFirst(sdc->spiUnitNumber, (u8*)&crc, 2);
-
+	NVIC_voidEnableInterrupt(NVIC_Interrupt_USART1);
 	/*	Get data response	*/
 	gotRd = get_rData(sdc, &rd);
 	if (!gotRd)
@@ -739,14 +741,14 @@ u8 SDC_u8ReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
 		if (STK_u64GetElapsedTicks() - startTime >= 1000 * STK_TICKS_PER_MS)
 			return 0;
 	}
-
+	NVIC_voidDisableInterrupt(NVIC_Interrupt_USART1);
 	/*	Receive the data block	*/
 	SPI_voidReceiveArrLsFirst(sdc->spiUnitNumber, block, 512);
 
 	/*	Receive the CRC	*/
 	u16 crc;
 	SPI_voidReceiveArrMsFirst(sdc->spiUnitNumber, (u8*)&crc, 2);
-
+	NVIC_voidEnableInterrupt(NVIC_Interrupt_USART1);
 	/*	Check CRC (if enabled)	*/
 	if (sdc->crcEnabled)
 	{
@@ -1252,7 +1254,11 @@ u8 SDC_u8ReadStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 	u8 successfull;
 
 	if (offset / 512 != stream->bufferOffset)
-		update_buffer(stream, offset);
+	{
+		successfull = update_buffer(stream, offset);
+		if (!successfull)
+			return 0;
+	}
 
 	/*
 	 * Program will copy from "stream->buffer" and break when it reaches its end,
@@ -1303,7 +1309,11 @@ u8 SDC_u8WriteStream(SD_Stream_t* stream, u32 offset, u8* arr, u32 len)
 	u8 successfull;
 
 	if (offset / 512 != stream->bufferOffset)
-		update_buffer(stream, offset);
+	{
+		successfull = update_buffer(stream, offset);
+		if (!successfull)
+			return 0;
+	}
 
 	/*
 	 * Program will copy to "stream->buffer" and break when it reaches its end,
@@ -1392,7 +1402,7 @@ void SDC_voidGetNextLine(SD_Stream_t* stream, char* line, u32 maxSize)
 		}
 
 		/*	if going to start reading from next sector, update buffer	*/
-		if ((offset+i) % 512 == 0)
+		if ((offset+i) / 512 != stream->bufferOffset)
 			keep_trying_update_buffer(stream, offset+i);
 
 		/*	Copy byte	*/
