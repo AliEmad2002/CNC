@@ -71,7 +71,7 @@ int main(void)
 
 	while(SDC_u8IsThereNextLine(&stream))
 	{
-		SDC_voidGetNextLine(&stream, line, 1024);
+		SDC_voidGetNextLine(&stream, line, 128);
 		trace_printf("%s\n", line);
 	}
 
