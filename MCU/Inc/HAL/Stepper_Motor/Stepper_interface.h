@@ -31,8 +31,8 @@ typedef struct
 	/***************
 	 * Following parameters are used for testing purposes.
 	 ***************/
-	s32 currentSpeed;
-	s32 currentAccel;
+	//s32 currentSpeed;
+	//s32 currentAccel;
 }Stepper_t;
 
 typedef enum{

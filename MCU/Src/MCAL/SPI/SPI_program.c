@@ -398,7 +398,7 @@ void SPI_voidTransmitArrMsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len)
 
 void SPI_voidTransmitArrLsFirst(SPI_UnitNumber_t unitNumber, u8* arr, u32 len)
 {
-	for (s32 i = 0; i < len; i++)
+	for (u32 i = 0; i < len; i++)
 	{
 		SPI_TRANSMIT(unitNumber, arr[i]);
 	}

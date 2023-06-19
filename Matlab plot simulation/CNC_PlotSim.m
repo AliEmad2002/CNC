@@ -27,7 +27,7 @@ MCUserial = serialport(port, baudrate, "Timeout",20);
 i = 0;
 isFirstAfterAir = 0;
 while 1
-    [x, y, z] = get_current_pos_from_MCU(MCUserial);
+    [x, y, z, vx, vy, vz, ax, ay, az] = get_current_pos_from_MCU(MCUserial);
 
     % if z-axis is low enough to carve the material, update material curve:
     if (z < z_material)

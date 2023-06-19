@@ -21,6 +21,6 @@
 /*	let supply voltage levels stabilize along the system	*/
 #define STARTUP_STABLIZATION_DELAY_MS		500
 
-#define SIMULATION_ON						1
+#define SIMULATION_ON						0
 
 #endif /* CNC_CONFIG_H_ */
