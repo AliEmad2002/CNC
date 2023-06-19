@@ -34,10 +34,11 @@ s32 LevelMap_s32GetDepthAt(LevelMap_t* map, s32 x, s32 y)
 	if (map->sY > y	|| y > map->eY || map->sX > x || x > map->eX)
 	{
 		/*	wrong x and/or y	*/
-		trace_printf("LevelMap_s32GetDepthAt(): \"wrong x and/or y in)\"");
-		u8 contAfterErr = 0;
-		__asm volatile ("bkpt 0");
-		while(!contAfterErr);
+//		trace_printf("LevelMap_s32GetDepthAt(): \"wrong x and/or y in)\"");
+//		volatile u8 contAfterErr = 0;
+//		__asm volatile ("bkpt 0");
+//		while(!contAfterErr);
+		return 0;
 	}
 
 	/*	finding iP, jP	*/

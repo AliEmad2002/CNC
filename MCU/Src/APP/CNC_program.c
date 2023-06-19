@@ -227,7 +227,7 @@ ALWAYS_INLINE_STATIC void get_speed_estimation_params(
 	s64 yDisplacement = pf->y - pi->y;
 	s64 zDisplacement = pf->z - pi->z;
 
-	s32 displacementMagnitude = sqrt(
+	u32 displacementMagnitude = sqrt(
 	xDisplacement * xDisplacement +
 	yDisplacement * yDisplacement +
 	zDisplacement * zDisplacement
@@ -239,10 +239,10 @@ ALWAYS_INLINE_STATIC void get_speed_estimation_params(
 	if (pf->v > traj->feedrateMax)
 		pf->v = traj->feedrateMax;
 
-	s64 speed1Squared = (s64)pi->v * (s64)pi->v;
-	s64 speed2Squared = (s64)pf->v * (s64)pf->v;
-	s64 speedMaxSquared = (s64)traj->feedrateMax * (s64)traj->feedrateMax;
-	s32 accelerationDoubled = 2 * traj->feedAccel;
+	u64 speed1Squared = (u64)pi->v * (u64)pi->v;
+	u64 speed2Squared = (u64)pf->v * (u64)pf->v;
+	u64 speedMaxSquared = (u64)traj->feedrateMax * (u64)traj->feedrateMax;
+	u32 accelerationDoubled = 2 * traj->feedAccel;
 
 	s32 d1 =
 		speedMaxSquared / accelerationDoubled -
@@ -409,7 +409,6 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 ALWAYS_INLINE_STATIC void execute_traj(CNC_t* CNC)
 {
 	//Trajectory_voidPrint(&(CNC->trajectory));
-	//asm volatile ("bkpt #0");
 
 	Trajectory_Point_t p;
 
@@ -511,10 +510,6 @@ static f32 get_uart_num(void)
 
 static void tool_change(CNC_t* CNC)
 {
-#if SIMULATION_ON
-	return;
-#endif
-
 	UART_voidSendString(UART_UNIT_NUMBER, "Entered tool change mode\r\n");
 	CNC_voidMoveManual(CNC);
 	CNC_voidChangeRamPos(CNC);
@@ -662,7 +657,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			break;
 
 		case G_CODE_singleProbe:
-			CNC_voidProbe(CNC);
+			CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
 			break;
 
 		case G_CODE_abslutePositioning:
@@ -756,7 +751,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 	/*	probe	*/
-	CNC_voidProbe(CNC);
+	CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
 #endif
 
 	/*	reset z-displacement variable	*/
@@ -831,7 +826,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 			/*	probe	*/
-			CNC_voidProbe(CNC);
+			CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
 
 			/*	save current z position to RAM	*/
 			LevelMap_voidSetDepthAt(&(CNC->map), i, j, CNC->stepperArr[Z].currentPos);
@@ -1439,7 +1434,7 @@ void CNC_voidMove3Axis(
 	}
 }
 
-void CNC_voidProbe(CNC_t* CNC)
+void CNC_voidProbe(CNC_t* CNC, u64 ticksPerStep)
 {
 	/**
 	 * Start lowering the head until contact occurs (first touch).
@@ -1465,7 +1460,7 @@ void CNC_voidProbe(CNC_t* CNC)
 		 * if it is time to step the z axis (based on the configured
 		 * "AL_SLOW_SPEED_TICKS_PER_STEP")
 		 */
-		if (timeSincePrevStep >= AL_SLOW_SPEED_TICKS_PER_STEP)
+		if (timeSincePrevStep >= ticksPerStep)
 		{
 			/*	step the Z-axis down	*/
 			Stepper_voidStep(
@@ -1532,10 +1527,6 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 
 void CNC_voidMoveManual(CNC_t* CNC)
 {
-#if SIMULATION_ON
-	return;
-#endif
-
 	char ch;
 
 	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
@@ -1593,10 +1584,6 @@ void CNC_voidMoveManual(CNC_t* CNC)
 
 void CNC_voidChangeRamPos(CNC_t* CNC)
 {
-#if SIMULATION_ON
-	return;
-#endif
-
 	char ch;
 
 	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
@@ -1660,7 +1647,51 @@ u8 CNC_u8AskNew()
 	return (ch == 'y');
 }
 
+void CNC_voidTestOptimumProbingSpeed(CNC_t* CNC)
+{
+	/*	Take average of 2 samples at very low speed to be the accurate reference value	*/
+	s32 accurate = 0;
+	for (u8 i = 0; i < 2; i++)
+	{
+		/*	Zero z-axis	*/
+		CNC_voidMove3Axis(
+			CNC,
+			0,
+			0,
+			0 - CNC->stepperArr[Z].currentPos,
+			0, 0,
+			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
+		/*	Probe	*/
+		CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+
+		trace_printf("Slow #%d: %d\n", i, CNC->stepperArr[2].currentPos);
+		accurate += CNC->stepperArr[2].currentPos;
+	}
+	accurate /= 2;
+	trace_printf("accurate: %d\n\n", accurate);
+
+	volatile u64 ticksPerStep = AL_SLOW_SPEED_TICKS_PER_STEP / 2;
+	for (u8 i = 0; ; i++)
+	{
+		/*	Zero z-axis	*/
+		CNC_voidMove3Axis(
+			CNC,
+			0,
+			0,
+			0 - CNC->stepperArr[Z].currentPos,
+			0, 0,
+			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
+		/*	Probe	*/
+		CNC_voidProbe(CNC, ticksPerStep);
+
+		s32 err = CNC->stepperArr[2].currentPos - accurate;
+		trace_printf("Fast #%d: %d, w/err: %d\n", i, CNC->stepperArr[2].currentPos, err);
+
+		ticksPerStep /= 2;
+	}
+}
 
 
 

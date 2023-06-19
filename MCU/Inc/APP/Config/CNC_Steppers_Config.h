@@ -10,11 +10,11 @@
 
 
 /*	stepper motor drivers' pins (slave in our poor pathetic case)	*/
-#define X_STEP_PIN							GPIO_Pin_A4
-#define X_DIR_PIN							GPIO_Pin_A9
+#define Y_STEP_PIN							GPIO_Pin_A4
+#define Y_DIR_PIN							GPIO_Pin_A9
 
-#define Y_STEP_PIN							GPIO_Pin_A2
-#define Y_DIR_PIN							GPIO_Pin_A3
+#define X_STEP_PIN							GPIO_Pin_A2
+#define X_DIR_PIN							GPIO_Pin_A3
 
 #define Z_STEP_PIN							GPIO_Pin_A0
 #define Z_DIR_PIN							GPIO_Pin_A1
@@ -30,7 +30,7 @@
 /*	steps per mm (initial, and could be changed by g-code later)	*/
 #define STEPS_PER_MM						800
 
-/*	minimum operating speed (in steps per second)	*/
+/*	minimum operating speed	*/
 #define SPEED_MIN							STEPS_PER_MM
 
 
