@@ -144,7 +144,7 @@ void CNC_voidMove3Axis(
  * probes at the current position of the tool.
  * (the current position of z-axis after probing, is depth of the sample)
  */
-void CNC_voidProbe(CNC_t* CNC, u64 ticksPerStep);
+void CNC_voidProbe(CNC_t* CNC);
 
 void CNC_voidUseImperialUnits(CNC_t* CNC);
 

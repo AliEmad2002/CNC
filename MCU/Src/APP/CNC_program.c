@@ -218,7 +218,6 @@ ALWAYS_INLINE_STATIC void get_next_segment(
 	get_z_inner(pi, pf, pInter);
 }
 
-
 ALWAYS_INLINE_STATIC void get_speed_estimation_params(
 	Trajectory_t* traj, Trajectory_Point_t* pi, Trajectory_Point_t* pf,
 	u32* ptrSpeedMax, u32* ptrD1, u32* ptrD2)
@@ -515,6 +514,61 @@ static void tool_change(CNC_t* CNC)
 	CNC_voidChangeRamPos(CNC);
 }
 
+void measure_depth(CNC_t* CNC, u64 ticksPerStep)
+{
+	/**
+	 * Start lowering the head until contact occurs (first touch).
+	 * Initially, pin must be pulled up and PCB must be grounded.
+	 **/
+
+	/*	current time (from sysTick)	*/
+	u64 timeCurrent = STK_u64GetElapsedTicks();
+
+	/*	number of steps made so far	*/
+	u32 steps = 0;
+
+	/*	current state of the probe pin	*/
+	u8 probePinCurrentState = Probe_u8GetStatus(&(CNC->probe));
+
+	/*	as long as the probe circuit is still open	*/
+	while(probePinCurrentState == Probe_State_OpenCircuit)
+	{
+		/*	time passed since previous step in Z-axis	*/
+		u64 timeSincePrevStep = timeCurrent - CNC->stepperArr[2].lastTimeStamp;
+
+		/*
+		 * if it is time to step the z axis (based on the configured
+		 * "AL_SLOW_SPEED_TICKS_PER_STEP")
+		 */
+		if (timeSincePrevStep >= ticksPerStep)
+		{
+			/*	step the Z-axis down	*/
+			Stepper_voidStep(
+				&CNC->stepperArr[2], Stepper_Direction_backward, timeCurrent);
+
+			/*	increment step counter	*/
+			steps++;
+
+			/*
+			 * if that step counter exceeds safety margin, execute error handler.
+			 */
+			if (steps > MAX_PROBE_STEPS)
+			{
+				trace_printf("Safe probing limit reached!\n");
+				volatile u8 stop = 1;
+				__BKPT(0);
+				while(stop);
+			}
+		}
+
+		/*	update probe pin current state	*/
+		probePinCurrentState = Probe_u8GetStatus(&(CNC->probe));
+
+		/*	update current timestamp	*/
+		timeCurrent = STK_u64GetElapsedTicks();
+	}
+}
+
 /*******************************************************************************
  * Interface functions:
  ******************************************************************************/
@@ -657,7 +711,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			break;
 
 		case G_CODE_singleProbe:
-			CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+			CNC_voidProbe(CNC);
 			break;
 
 		case G_CODE_abslutePositioning:
@@ -751,7 +805,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 	/*	probe	*/
-	CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+	CNC_voidProbe(CNC);
 #endif
 
 	/*	reset z-displacement variable	*/
@@ -826,7 +880,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
 			/*	probe	*/
-			CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+			CNC_voidProbe(CNC);
 
 			/*	save current z position to RAM	*/
 			LevelMap_voidSetDepthAt(&(CNC->map), i, j, CNC->stepperArr[Z].currentPos);
@@ -1434,59 +1488,21 @@ void CNC_voidMove3Axis(
 	}
 }
 
-void CNC_voidProbe(CNC_t* CNC, u64 ticksPerStep)
+void CNC_voidProbe(CNC_t* CNC)
 {
-	/**
-	 * Start lowering the head until contact occurs (first touch).
-	 * Initially, pin must be pulled up and PCB must be grounded.
-	 **/
+	measure_depth(CNC, AL_FAST_SPEED_TICKS_PER_STEP);
 
-	/*	current time (from sysTick)	*/
-	u64 timeCurrent = STK_u64GetElapsedTicks();
+#ifdef AUTO_LEVELING_PROBING_MODE_ONE_FAST_ONE_SLOW
+	CNC_voidMove3Axis(
+		CNC,
+		0,
+		0,
+		AUTO_LEVELING_PROBING_SMALL_DISTANCE - CNC->stepperArr[Z].currentPos,
+		0, 0,
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
-	/*	number of steps made so far	*/
-	u32 steps = 0;
-
-	/*	current state of the probe pin	*/
-	u8 probePinCurrentState = Probe_u8GetStatus(&(CNC->probe));
-
-	/*	as long as the probe circuit is still open	*/
-	while(probePinCurrentState == Probe_State_OpenCircuit)
-	{
-		/*	time passed since previous step in Z-axis	*/
-		u64 timeSincePrevStep = timeCurrent - CNC->stepperArr[2].lastTimeStamp;
-
-		/*
-		 * if it is time to step the z axis (based on the configured
-		 * "AL_SLOW_SPEED_TICKS_PER_STEP")
-		 */
-		if (timeSincePrevStep >= ticksPerStep)
-		{
-			/*	step the Z-axis down	*/
-			Stepper_voidStep(
-				&CNC->stepperArr[2], Stepper_Direction_backward, timeCurrent);
-
-			/*	increment step counter	*/
-			steps++;
-
-			/*
-			 * if that step counter exceeds safety margin, execute error handler.
-			 */
-			if (steps > MAX_PROBE_STEPS)
-			{
-				trace_printf("Safe probing limit reached!\n");
-				volatile u8 stop = 1;
-				__BKPT(0);
-				while(stop);
-			}
-		}
-		
-		/*	update probe pin current state	*/
-		probePinCurrentState = Probe_u8GetStatus(&(CNC->probe));
-
-		/*	update current timestamp	*/
-		timeCurrent = STK_u64GetElapsedTicks();
-	}
+	measure_depth(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+#endif
 }
 
 void CNC_voidUseImperialUnits(CNC_t* CNC)
@@ -1647,6 +1663,12 @@ u8 CNC_u8AskNew()
 	return (ch == 'y');
 }
 
+/*
+ * Calling this function after initializing the CNC, shows how much probing speed
+ * affects its accuracy.
+ *
+ * Any ways, this is a problem if the "one-fast, one-accurate" probing mode is enabled.
+ */
 void CNC_voidTestOptimumProbingSpeed(CNC_t* CNC)
 {
 	/*	Take average of 2 samples at very low speed to be the accurate reference value	*/
@@ -1662,8 +1684,8 @@ void CNC_voidTestOptimumProbingSpeed(CNC_t* CNC)
 			0, 0,
 			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
-		/*	Probe	*/
-		CNC_voidProbe(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+		/*	Measure	*/
+		measure_depth(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
 
 		trace_printf("Slow #%d: %d\n", i, CNC->stepperArr[2].currentPos);
 		accurate += CNC->stepperArr[2].currentPos;
@@ -1683,8 +1705,8 @@ void CNC_voidTestOptimumProbingSpeed(CNC_t* CNC)
 			0, 0,
 			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
-		/*	Probe	*/
-		CNC_voidProbe(CNC, ticksPerStep);
+		/*	Measure	*/
+		measure_depth(CNC, ticksPerStep);
 
 		s32 err = CNC->stepperArr[2].currentPos - accurate;
 		trace_printf("Fast #%d: %d, w/err: %d\n", i, CNC->stepperArr[2].currentPos, err);
