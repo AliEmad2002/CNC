@@ -41,6 +41,14 @@ G29 L0 R10 F0 B15 N6 N6
 (Tool change)
 M06
 
+(Probing new tool)
+G30
+
+(Give chance for removing probing wires)
+M06
+
+(Zeroing Z-axis after probing)
+G92 X0 Y0 Z0
 
 G01 F120.00
 G00 Z2.0000
