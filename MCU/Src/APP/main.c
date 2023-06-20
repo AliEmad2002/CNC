@@ -46,8 +46,6 @@ int main(void)
 		/*	Change RAM stored position	*/
 		CNC_voidChangeRamPos(&CNC);
 
-		CNC_voidTestOptimumProbingSpeed(&CNC);
-
 		/*	Run G-code file from the SD-card	*/
 		CNC_voidRunGcodeFile(&CNC);
 
