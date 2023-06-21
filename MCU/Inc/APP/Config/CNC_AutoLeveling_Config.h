@@ -33,8 +33,8 @@
 #define AL_GRID_TRIMMER						20
 
 /*	probing speed inverse	*/
-#define AL_SLOW_SPEED_TICKS_PER_STEP		1600*25
-#define AL_FAST_SPEED_TICKS_PER_STEP		1600
+#define AL_SLOW_SPEED_TICKS_PER_STEP		(1600*25*2)
+#define AL_FAST_SPEED_TICKS_PER_STEP		(1600*2)
 
 #define AUTO_LEVELING_FLASH_BASE_PAGE		55
 
@@ -49,7 +49,7 @@
  * making another measure slowly. The second measure is the one actually taken
  */
 #define AUTO_LEVELING_PROBING_MODE_ONE_FAST_ONE_SLOW
-#define AUTO_LEVELING_PROBING_SMALL_DISTANCE		80 // 80 step = 0.1mm
+#define AUTO_LEVELING_PROBING_SMALL_DISTANCE		(80*5) // 80*5 step = 0.5mm
 
 
 #endif /* INCLUDE_APP_CONFIG_CNC_AUTOLEVELING_CONFIG_H_ */

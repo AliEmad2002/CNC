@@ -28,7 +28,7 @@
 #define SPEED_CHANGE_DELTA		 			64
 
 /*	steps per mm (initial, and could be changed by g-code later)	*/
-#define STEPS_PER_MM						800
+#define STEPS_PER_MM						400
 
 /*	minimum operating speed	*/
 #define SPEED_MIN							STEPS_PER_MM

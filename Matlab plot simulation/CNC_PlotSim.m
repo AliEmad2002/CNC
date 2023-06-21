@@ -12,7 +12,7 @@ z_max = 100*800;
 z_material = 0;
 z_updaterate = 1000; % number of iterations to update z-axis color
 
-port = "COM15";
+port = "COM7";
 baudrate = 115200;
 
 %% prepare plot parameters:
@@ -27,7 +27,7 @@ MCUserial = serialport(port, baudrate, "Timeout",20);
 i = 0;
 isFirstAfterAir = 0;
 while 1
-    [x, y, z, vx, vy, vz, ax, ay, az] = get_current_pos_from_MCU(MCUserial);
+    [x, y, z] = get_current_pos_from_MCU(MCUserial);
 
     % if z-axis is low enough to carve the material, update material curve:
     if (z < z_material)

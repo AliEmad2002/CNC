@@ -40,8 +40,7 @@ extern CNC_t CNC;
 void CNC_voidRxCallBack(void)
 {
 	/*	read UART data register	*/
-	char byte;
-	(void)UART_enumReciveByte(UART_UNIT_NUMBER, &byte);
+	(void)UART_voidFlushDataReceiveRegister(UART_UNIT_NUMBER);
 
 	/*	send current position	*/
 	(void)UART_enumSendByte(UART_UNIT_NUMBER, (u8)( CNC.stepperArr[0].currentPos & 0xFF));

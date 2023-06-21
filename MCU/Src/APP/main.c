@@ -13,6 +13,7 @@
 /*	LIB	*/
 #include "Std_Types.h"
 #include "Delay_interface.h"
+#include <string.h>
 
 /*	APP	*/
 #include "CNC_config.h"
@@ -38,8 +39,14 @@ int main(void)
 	CNC_voidInit(&CNC);
 
 #if !SIMULATION_ON
+	char fileNameStr[5];
+	strcpy(fileNameStr, "0.NC");
+	volatile u8 fileCount = 0;
 	while(1)
 	{
+		/*	Open G-code file	*/
+		SDC_voidKeepTryingOpenStream(&(CNC.gcodeFile), &(CNC.sdCard), fileNameStr);
+
 		/*	Make manual movement	*/
 		CNC_voidMoveManual(&CNC);
 
@@ -51,11 +58,16 @@ int main(void)
 
 		/*	Ask user if they want to do a new operation	*/
 		if (CNC_u8AskNew(&CNC))
-			continue;
+		{
+			fileCount++;
+			fileNameStr[0] = '0' + fileCount;
+		}
 		else
 			break;
 	}
 #else
+	SDC_voidKeepTryingOpenStream(&(CNC.gcodeFile), &(CNC.sdCard), "0.NC");
+
 	/*	wait for the first MATLAB request to start simulation	*/
 	while(!UART_b8GetRxFlag(UART_UNIT_NUMBER));
 

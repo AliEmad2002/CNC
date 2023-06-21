@@ -509,6 +509,10 @@ static f32 get_uart_num(void)
 
 static void tool_change(CNC_t* CNC)
 {
+#if SIMULATION_ON
+	return;
+#endif
+
 	UART_voidSendString(UART_UNIT_NUMBER, "Entered tool change mode\r\n");
 	CNC_voidMoveManual(CNC);
 	CNC_voidChangeRamPos(CNC);
@@ -607,9 +611,6 @@ void CNC_voidInit(CNC_t* CNC)
 	/*	SD card	*/
 	SDC_voidKeepTryingInitConnection(&(CNC->sdCard), 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
 	SDC_voidKeepTryingInitPartition(&(CNC->sdCard));
-
-	/*	G-code file	*/
-	SDC_voidKeepTryingOpenStream(&(CNC->gcodeFile), &(CNC->sdCard), "FILE.NC");
 
 	/*	Trajectory RFS	*/
 	CNC->trajectory.numberOfPoints = 0;
@@ -1490,6 +1491,10 @@ void CNC_voidMove3Axis(
 
 void CNC_voidProbe(CNC_t* CNC)
 {
+#if SIMULATION_ON
+	return;
+#endif
+
 	measure_depth(CNC, AL_FAST_SPEED_TICKS_PER_STEP);
 
 #ifdef AUTO_LEVELING_PROBING_MODE_ONE_FAST_ONE_SLOW
@@ -1543,6 +1548,10 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 
 void CNC_voidMoveManual(CNC_t* CNC)
 {
+#if SIMULATION_ON
+	return;
+#endif
+
 	char ch;
 
 	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
