@@ -31,7 +31,7 @@
 #define STEPS_PER_MM						400
 
 /*	minimum operating speed	*/
-#define SPEED_MIN							STEPS_PER_MM
+#define SPEED_MIN							(STEPS_PER_MM/4) // 0.25mm/sec
 
 
 
