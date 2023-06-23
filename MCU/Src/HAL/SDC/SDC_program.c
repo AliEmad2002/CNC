@@ -598,7 +598,7 @@ u8 SDC_u8InitPartition(SDC_t* sdc)
 	u16 numberOfReservedSectors	= *(u16*)&(sdc->block[0x0E]);
 	u8 numberOfFats				= *(u8 *)&(sdc->block[0x10]);
 	sdc->fat.sectorsPerFat		= *(u32*)&(sdc->block[0x24]);
-	u32 rootDirFirstCluster		= *(u32*)&(sdc->block[0x2C]);
+	//u32 rootDirFirstCluster		= *(u32*)&(sdc->block[0x2C]);
 	u16 signature				= *(u16*)&(sdc->block[0x1FE]);
 
 	/*	Check constant values (from "volume ID critical fields" table in the document)	*/
@@ -850,8 +850,6 @@ void SDC_voidKeepTryingReadBlock(SDC_t* sdc, u8* block, u32 blockNumber)
  ******************************************************************************/
 static SDC_DirRecordType_t get_dir_record_type(SDC_DirData_t* rec)
 {
-	u8 u8Attrib = *((u8*)&(rec->attrib));
-
 	/*	Normal	*/
 	if (!rec->attrib.volumeId  &&
 		!rec->attrib.directory &&
@@ -871,7 +869,7 @@ static SDC_DirRecordType_t get_dir_record_type(SDC_DirData_t* rec)
 		return SDC_DirRecordType_LongFileName;
 
 	/*	unused	*/
-	if (rec->shortFileName[0] == 0xE5)
+	if (rec->shortFileName[0] == (char)0xE5)
 		return SDC_DirRecordType_Unused;
 
 	/*	End of directory	*/
@@ -1024,14 +1022,9 @@ static u8 find_dirData_in_cluster(
 
 static u32 get_next_cluster_number(SDC_t* sdc, u32 currentClusterNumber)
 {
-	u8 successfull;
-
 	/*	Get next cluster number by reading FAT's integer indexed by "currentClusterNumber"	*/
 	/*	Read FAT (File Allocation Table) sector containing that entry	*/
 	SDC_voidKeepTryingReadBlock(sdc, sdc->block, sdc->fat.lba + currentClusterNumber / 128);
-
-	SDC_NextClusterEntry_t nextClusterEntry =
-		((SDC_NextClusterEntry_t*)sdc->block)[currentClusterNumber % 128];
 
 	/*	if there's no next cluster	*/
 	u32 u32entry = ((u32*)sdc->block)[currentClusterNumber % 128];
@@ -1080,7 +1073,6 @@ static u8 find_dirData_in_directory(
 /*	Gets cluster number of a cluster given its index, and first cluster number	*/
 static u32 get_cluster_number(SDC_t* sdc, u32 firstClusterNumber, u32 clusterIndex)
 {
-	volatile u32 fst = firstClusterNumber;
 	u32 clusterNumber = firstClusterNumber;
 	for (u32 i = 0; i < clusterIndex; i++)
 	{

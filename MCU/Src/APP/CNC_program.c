@@ -1724,7 +1724,26 @@ void CNC_voidTestOptimumProbingSpeed(CNC_t* CNC)
 	}
 }
 
+void CNC_voidInfProbing(CNC_t* CNC)
+{
+	while(1)
+	{
+		/*	Zero z-axis	*/
+		CNC_voidMove3Axis(
+			CNC,
+			0,
+			0,
+			0 - CNC->stepperArr[Z].currentPos,
+			0, 0,
+			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
+		/*	Probe	*/
+		CNC_voidProbe(CNC);
+
+		/*	Print depth	*/
+		trace_printf("d = %d\n", CNC->stepperArr[Z].currentPos);
+	}
+}
 
 
 

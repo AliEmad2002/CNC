@@ -10,14 +10,14 @@
 
 
 /*	stepper motor drivers' pins (slave in our poor pathetic case)	*/
-#define Y_STEP_PIN							GPIO_Pin_A4
-#define Y_DIR_PIN							GPIO_Pin_A9
+#define Z_STEP_PIN							GPIO_Pin_A4
+#define Z_DIR_PIN							GPIO_Pin_B10
 
 #define X_STEP_PIN							GPIO_Pin_A2
 #define X_DIR_PIN							GPIO_Pin_A3
 
-#define Z_STEP_PIN							GPIO_Pin_A0
-#define Z_DIR_PIN							GPIO_Pin_A1
+#define Y_STEP_PIN							GPIO_Pin_A1
+#define Y_DIR_PIN							GPIO_Pin_A0
 
 /*	spindles driving PWM signal	*/
 #define SPINDLE_PWM_TIM_UNIT_NUMBER			1
@@ -28,7 +28,7 @@
 #define SPEED_CHANGE_DELTA		 			64
 
 /*	steps per mm (initial, and could be changed by g-code later)	*/
-#define STEPS_PER_MM						400
+#define STEPS_PER_MM						800
 
 /*	minimum operating speed	*/
 #define SPEED_MIN							(STEPS_PER_MM/4) // 0.25mm/sec

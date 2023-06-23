@@ -47,15 +47,15 @@ void Stepper_voidStep(
 	/*	output prober direction signal	*/
 	switch (dir)
 	{
-		case Stepper_Direction_forward:
+		case Stepper_Direction_backward:
 			GPIO_voidSetPinOutputLevel(
 				stepperPtr->dirPort, stepperPtr->dirPin, GPIO_OutputLevel_High);
-			stepperPtr->currentPos++;
+			stepperPtr->currentPos--;
 			break;
-		default:	//	i.e.: Stepper_dir_backward:
+		default:	//	i.e.: Stepper_Direction_forward:
 			GPIO_voidSetPinOutputLevel(
 				stepperPtr->dirPort, stepperPtr->dirPin, GPIO_OutputLevel_Low);
-			stepperPtr->currentPos--;
+			stepperPtr->currentPos++;
 	}
 	
 	/*	step	*/

@@ -15,6 +15,8 @@
 #include "Delay_interface.h"
 #include <string.h>
 
+#include "STK_interface.h"
+
 /*	APP	*/
 #include "CNC_config.h"
 #include "CNC_interface.h"
@@ -24,6 +26,8 @@
 #include "UART_interface.h"
 #include <diag/trace.h>
 #endif
+
+void test_steppers(void);
 
 CNC_t CNC;
 
@@ -37,6 +41,9 @@ int main(void)
 
 	/*	init CNC object	*/
 	CNC_voidInit(&CNC);
+
+	//test_steppers();
+	//CNC_voidInfProbing(&CNC);
 
 #if !SIMULATION_ON
 	char fileNameStr[5];
@@ -77,4 +84,23 @@ int main(void)
 #endif
 
 	while(1);
+}
+
+void test_steppers(void)
+{
+	u8 dir = 0;
+	while(1)
+	{
+		for (u32 i = 0; i < 8000; i++)
+		{
+			u64 currentTime = STK_u64GetElapsedTicks();
+			Stepper_voidStep(&CNC.stepperArr[0], dir, currentTime);
+			//Stepper_voidStep(&CNC.stepperArr[1], dir, currentTime);
+			//Stepper_voidStep(&CNC.stepperArr[2], dir, currentTime);
+
+			Delay_voidBlockingDelayMs(1);
+		}
+
+		dir = (!dir);
+	}
 }
