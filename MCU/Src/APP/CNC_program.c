@@ -922,7 +922,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 #endif
 
 	/**	store in flash	**/
-	LevelMap_voidStoreToFlash(&(CNC->map));
+	//LevelMap_voidStoreToFlash(&(CNC->map));
 }
 
 void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)
@@ -931,7 +931,7 @@ void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)
 	CNC->config.autoLevelingEnabled = 1;
 
 	/*	read flash	*/
-	LevelMap_voidRestoreFromFlash(&(CNC->map));
+	//LevelMap_voidRestoreFromFlash(&(CNC->map));
 }
 
 void CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(

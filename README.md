@@ -7,11 +7,3 @@ Mainly targeted for STM32F103 MCU.
 
 # 3. Features:
 Each of the following will be discussed later.
-  * Color LCD UI. (TODO)
-  * Running G-code from SD-card.
-  * Auto-Leveling.
-  * Real-time paths simulation on MATLAB.
-  * Spindle speed PID control.  (TODO)
-  * Slef homing.  (TODO)
-  * Z-axis fault handling.  (TODO)
-  * Continue after pwoer-loss.  (TODO)
