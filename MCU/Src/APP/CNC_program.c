@@ -38,7 +38,7 @@
 
 static u64 ticksPerSecond;
 
-#define MAP_LEN		400
+#define MAP_LEN		2000
 static s32 mapArr[MAP_LEN];
 
 /*******************************************************************************
@@ -1498,15 +1498,19 @@ void CNC_voidProbe(CNC_t* CNC)
 	measure_depth(CNC, AL_FAST_SPEED_TICKS_PER_STEP);
 
 #ifdef AUTO_LEVELING_PROBING_MODE_ONE_FAST_ONE_SLOW
+	Delay_voidBlockingDelayMs(100);
+
 	CNC_voidMove3Axis(
 		CNC,
 		0,
 		0,
-		AUTO_LEVELING_PROBING_SMALL_DISTANCE - CNC->stepperArr[Z].currentPos,
+		AUTO_LEVELING_PROBING_SMALL_DISTANCE,
 		0, 0,
 		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 
-	measure_depth(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+	Delay_voidBlockingDelayMs(100);
+	static volatile u64 slowSpeed = AL_SLOW_SPEED_TICKS_PER_STEP;
+	measure_depth(CNC, slowSpeed);
 #endif
 }
 
