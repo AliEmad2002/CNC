@@ -1,4 +1,4 @@
-# 1. Introduction
+# 1. Introduction 
 This SW runs CNC milling and drilling machine by G-Code interfacing*.
 (not all G-code methods are implemented, only the needed ones)
 
