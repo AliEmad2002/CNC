@@ -43,6 +43,8 @@ void Delay_voidBlockingDelayTicks(u64 ticks)
  */
 void Delay_voidDelay2Us(void)
 {
+	register u8 count = 8;
+	while(count--){
 	__asm__ volatile("NOP");
 	__asm__ volatile("NOP");
 	__asm__ volatile("NOP");
@@ -186,7 +188,7 @@ void Delay_voidDelay2Us(void)
 	__asm__ volatile("NOP");
 	__asm__ volatile("NOP");
 	__asm__ volatile("NOP");
-	__asm__ volatile("NOP");
+	__asm__ volatile("NOP");}
 }
 
 

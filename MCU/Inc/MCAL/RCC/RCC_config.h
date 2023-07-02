@@ -26,7 +26,7 @@
 /*	enable switches of clock sources	*/
 #define RCC_HSI_EN		true
 #define RCC_HSE_EN		true
-#define RCC_PLL_EN		false
+#define RCC_PLL_EN		true
 #define RCC_CSS_EN		false
 /*	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~		*/
 
@@ -39,7 +39,7 @@
  *	 RCC_SYSCLOCKSWITCH_PLL = 2,
  * }RCC_SYSCLOCKSWITCH;
  */
-#define RCC_SYS_SOURCE	RCC_SYSCLOCKSWITCH_HSE
+#define RCC_SYS_SOURCE	RCC_SYSCLOCKSWITCH_PLL
 /*	~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~		*/
 
 /*	HSE pybass (if used)	*/

@@ -105,6 +105,12 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC);
 void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC);
 
 /*
+ * Scans the level map in fast mode (scanning needed areas only) for the currently
+ * opened .NC file.
+ */
+void CNC_voidExecuteFastAutoLevelingSampling(CNC_t* CNC);
+
+/*
  * calculates the speed at a given point.
  * (used in auto leveled movements)
  */
@@ -165,6 +171,8 @@ void CNC_voidRunGcodeFile(CNC_t* CNC);
  */
  /*	TODO: use USB or debugger "printf()" and "scanf()", do HW UI later	*/
 u8 CNC_u8AskNew();
+
+u8 CNC_u8AskFastScanMap();
 
 void CNC_voidInfProbing(CNC_t* CNC);
 

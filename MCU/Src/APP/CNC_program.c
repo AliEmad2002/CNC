@@ -36,9 +36,11 @@
 #include "CNC_interface.h"
 
 
+#define MAX_S32			(2147483647)
+
 static u64 ticksPerSecond;
 
-#define MAP_LEN		2000
+#define MAP_LEN		2200
 static s32 mapArr[MAP_LEN];
 
 /*******************************************************************************
@@ -102,6 +104,32 @@ ALWAYS_INLINE_STATIC void read_execute_non_traj_chunk(CNC_t* CNC)
 		{
 			parse_execute_line(CNC);
 		}
+
+		/*	otherwise, set "stream->reader" back to first of this last read line, and return	*/
+		else
+		{
+			(void)SDC_u8SeekReaderPrevLine(&(CNC->gcodeFile));
+			return;
+		}
+	}
+}
+
+ALWAYS_INLINE_STATIC void read_only_non_traj_chunk(CNC_t* CNC)
+{
+	u8 isTraj;
+
+	/*	while G-code file still has un-read lines	*/
+	while(SDC_u8IsThereNextLine(&(CNC->gcodeFile)))
+	{
+		/*	read line	*/
+		SDC_voidGetNextLine(&(CNC->gcodeFile), CNC->lineStr, MAX_STR_LEN);
+
+		/*	check if it is trajectory related or not	*/
+		isTraj = is_traj_line(CNC->lineStr);
+
+		/*	if not, do nothing	*/
+		if (!isTraj)
+		{	}
 
 		/*	otherwise, set "stream->reader" back to first of this last read line, and return	*/
 		else
@@ -418,6 +446,108 @@ ALWAYS_INLINE_STATIC void execute_traj(CNC_t* CNC)
 	}
 }
 
+static s32 scan_at(CNC_t* CNC, s32 x, s32 y)
+{
+	// tool up:
+	CNC_voidMove3Axis(
+		CNC, 0, 0, AUTO_LEVELING_UP, 0, 0,
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
+	// move to (x, y):
+	CNC_voidMove3Axis(
+		CNC,
+		x - CNC->stepperArr[X].currentPos,
+		y - CNC->stepperArr[Y].currentPos,
+		0, 0, 0,
+		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
+	/*	probe	*/
+	CNC_voidProbe(CNC);
+
+	return CNC->stepperArr[Z].currentPos;
+
+}
+
+ALWAYS_INLINE_STATIC void scan_between(CNC_t* CNC, Trajectory_Point_t* pi, Trajectory_Point_t* pf)
+{
+	Trajectory_Point_t pInner0 = *pi;
+	Trajectory_Point_t pInner1;
+
+	/*	Movement is segmented/trimmed into smaller movements	*/
+	while(1)
+	{
+		get_next_segment(&pInner0, pf, &pInner1);
+
+		/*	If 'pInner0" is out of the selected level map range, return	*/
+		if (	pInner0.x < CNC->map.sX || pInner0.x > CNC->map.eX	||
+				pInner0.y < CNC->map.sY || pInner0.y > CNC->map.eY	)
+		{
+			return;
+		}
+
+		/*
+		 * If any of "pInner0"'s 4 surrounding level map points was not scanned
+		 * yet, scan it.
+		 */
+		u8 iP = (u8)((pInner0.y - CNC->map.sY) / CNC->map.dY);
+		u8 jP = (u8)((pInner0.x - CNC->map.sX) / CNC->map.dX);
+
+		s32 xL = CNC->map.sX + ((s32)jP) * CNC->map.dX;
+		s32 yT = CNC->map.sY + ((s32)iP) * CNC->map.dY;
+		s32 xR = xL + CNC->map.dX;
+		s32 yB = yT + CNC->map.dY;
+
+		u16 iTL = iP * CNC->map.nX + jP;
+		u16 iTR = iP * CNC->map.nX + jP+1;
+		u16 iBL = (iP+1) * CNC->map.nX + jP;
+		u16 iBR = (iP+1) * CNC->map.nX + jP+1;
+
+		if (CNC->map.mapArr[iTL] == MAX_S32)
+			CNC->map.mapArr[iTL] = scan_at(CNC, xL, yT);
+
+		if (CNC->map.mapArr[iTR] == MAX_S32)
+			CNC->map.mapArr[iTR] = scan_at(CNC, xR, yT);
+
+		if (CNC->map.mapArr[iBL] == MAX_S32)
+			CNC->map.mapArr[iBL] = scan_at(CNC, xL, yB);
+
+		if (CNC->map.mapArr[iBR] == MAX_S32)
+			CNC->map.mapArr[iBR] = scan_at(CNC, xR, yB);
+
+		if (
+			pInner1.x == pf->x	&&
+			pInner1.y == pf->y	&&
+			pInner1.z == pf->z
+			)
+			break;
+
+		pInner0 = pInner1;
+	}
+}
+
+ALWAYS_INLINE_STATIC void scan_traj(CNC_t* CNC)
+{
+	Trajectory_Point_t pi, pf;
+
+	if (CNC->trajectory.numberOfPoints == 0)
+		return;
+
+	Trajectory_voidGetPointAt(&(CNC->trajectory), 0, &pi);
+
+	if (CNC->trajectory.numberOfPoints == 1)
+	{
+		scan_between(CNC, &pi, &pi);
+		return;
+	}
+
+	for (u32 i = 1; i < CNC->trajectory.numberOfPoints; i++)
+	{
+		Trajectory_voidGetPointAt(&(CNC->trajectory), i, &pf);
+		scan_between(CNC, &pi, &pf);
+		pi = pf;
+	}
+}
+
 static void get_point_from_msg(CNC_t* CNC, Trajectory_Point_t *p, G_Code_Msg_t* msg)
 {
 	/**
@@ -498,6 +628,66 @@ ALWAYS_INLINE_STATIC void read_execute_traj_chunk(CNC_t* CNC)
 
 	/*	Execute it	*/
 	execute_traj(CNC);
+}
+
+ALWAYS_INLINE_STATIC void read_scan_traj_chunk(CNC_t* CNC)
+{
+	b8 parseSuccess;
+	u8 isTraj;
+	Trajectory_Point_t p;
+	G_Code_Msg_t msg;
+	u8 isFirst = 1;
+
+	/*	while G-code file still has un-read lines	*/
+	while(SDC_u8IsThereNextLine(&(CNC->gcodeFile)))
+	{
+		/*	read line	*/
+		SDC_voidGetNextLine(&(CNC->gcodeFile), CNC->lineStr, MAX_STR_LEN);
+
+		/*	check if it is trajectory related or not	*/
+		isTraj = is_traj_line(CNC->lineStr);
+
+		/*	if it is	*/
+		if (isTraj)
+		{
+			/*	parse line	*/
+			parseSuccess = G_Code_b8ParseLine(&msg, CNC->lineStr);
+
+			/*	if parsing failed, skip this line (comment or empty line)	*/
+			if (!parseSuccess)
+			{
+//				trace_printf("Could not parse G-code line:\n");
+//				trace_printf("%s\n", CNC->lineStr);
+				continue;
+			}
+
+			/*	Otherwise, copy new point	*/
+			get_point_from_msg(CNC, &p, &msg);
+
+			if (isFirst)
+			{
+				/*	reset reading pointers in trajectory object	*/
+				Trajectory_voidReset(&(CNC->trajectory), &p);
+				isFirst = 0;
+			}
+
+			else
+			{
+				/*	Add point "p" to the trajectory object	*/
+				Trajectory_voidAddPoint(&(CNC->trajectory), &p);
+			}
+		}
+
+		/*	otherwise, set "stream->reader" back to first of this last read line, and break	*/
+		else
+		{
+			(void)SDC_u8SeekReaderPrevLine(&(CNC->gcodeFile));
+			break;
+		}
+	}
+
+	/*	scan it	*/
+	scan_traj(CNC);
 }
 
 static f32 get_uart_num(void)
@@ -636,7 +826,7 @@ void CNC_voidInit(CNC_t* CNC)
 	/*	map	*/
 	CNC->map.flashSavingBasePage = AUTO_LEVELING_FLASH_BASE_PAGE;
 	CNC->map.mapArr = mapArr;
-	for (u16 i = 0; i < 400; i++)
+	for (u16 i = 0; i < MAP_LEN; i++)
 		mapArr[i] = 0;
 
 	/*	obviously, machine've just started	*/
@@ -786,6 +976,10 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 
 void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 {
+	/*	if a map was already scanned previously in this run	*/
+	if (CNC->config.autoLevelingEnabled)
+		return;
+
 #if !SIMULATION_ON
 	/**
 	 * initially probe on (x, y) = (0, 0), and re-set z-displacement variable.
@@ -831,73 +1025,85 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	for (u32 i = 0; i < MAP_LEN; i++)
 		CNC->map.mapArr[i] = 0;
 #else
-	/**	start probing/sampling	**/
-	u8 i = 0;
-	u8 j = 0;
-
-	/*	y-axis loop	*/
-	for (s32 y = CNC->map.sY; y <= CNC->map.eY; y += CNC->map.dY)
+	/*
+	 * Ask user if they want to scan a level map in fast mode for the currently
+	 * open file.
+	 */
+	if (CNC_u8AskFastScanMap())
 	{
-		s32 x;
-		s32 dx;
-		u8 jFinal;
-		/*	at odd lines, take samples from the end back to beginning	*/
-		if (i % 2)
-		{
-			 x = CNC->map.eX;
-			 dx = -CNC->map.dX;
-			 jFinal = 0;
-			 j = CNC->map.nX - 1;
-		}
-		/*	while even lines are normally sampled from 0 to N - 1	*/
-		else
-		{
-			x = CNC->map.sX;
-			dx = CNC->map.dX;
-			jFinal = CNC->map.nX - 1;
-			j = 0;
-		}
-
-		/*
-		 * x-axis loop.
-		 * (This loop is iterated in a little different way than that of y-axis,
-		 * because y-axis only goes down, while x-axis will go right in one row,
-		 * and go left on the next row, to save hypotenuse displacement time)
-		 */
-		while(1)
-		{
-			/*	go to that point of (x, y)	*/
-			// tool up:
-			CNC_voidMove3Axis(
-				CNC, 0, 0, AUTO_LEVELING_UP, 0, 0,
-				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
-
-			// move to (x, y):
-			CNC_voidMove3Axis(
-				CNC,
-				x - CNC->stepperArr[X].currentPos,
-				y - CNC->stepperArr[Y].currentPos,
-				0, 0, 0,
-				CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
-
-			/*	probe	*/
-			CNC_voidProbe(CNC);
-
-			/*	save current z position to RAM	*/
-			LevelMap_voidSetDepthAt(&(CNC->map), i, j, CNC->stepperArr[Z].currentPos);
-
-			/*	iteration end checks	*/
-			if (j == jFinal)
-				break;
-			if (i % 2)
-				j--;
-			else
-				j++;
-			x += dx;
-		}
-		i++;
+		CNC_voidExecuteFastAutoLevelingSampling(CNC);
 	}
-	
+
+	/**	otherwise, start probing/sampling	**/
+	else
+	{
+		u8 i = 0;
+		u8 j = 0;
+
+		/*	y-axis loop	*/
+		for (s32 y = CNC->map.sY; y <= CNC->map.eY; y += CNC->map.dY)
+		{
+			s32 x;
+			s32 dx;
+			u8 jFinal;
+			/*	at odd lines, take samples from the end back to beginning	*/
+			if (i % 2)
+			{
+				 x = CNC->map.eX;
+				 dx = -CNC->map.dX;
+				 jFinal = 0;
+				 j = CNC->map.nX - 1;
+			}
+			/*	while even lines are normally sampled from 0 to N - 1	*/
+			else
+			{
+				x = CNC->map.sX;
+				dx = CNC->map.dX;
+				jFinal = CNC->map.nX - 1;
+				j = 0;
+			}
+
+			/*
+			 * x-axis loop.
+			 * (This loop is iterated in a little different way than that of y-axis,
+			 * because y-axis only goes down, while x-axis will go right in one row,
+			 * and go left on the next row, to save hypotenuse displacement time)
+			 */
+			while(1)
+			{
+				/*	go to that point of (x, y)	*/
+				// tool up:
+				CNC_voidMove3Axis(
+					CNC, 0, 0, AUTO_LEVELING_UP, 0, 0,
+					CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
+				// move to (x, y):
+				CNC_voidMove3Axis(
+					CNC,
+					x - CNC->stepperArr[X].currentPos,
+					y - CNC->stepperArr[Y].currentPos,
+					0, 0, 0,
+					CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
+				/*	probe	*/
+				CNC_voidProbe(CNC);
+
+				/*	save current z position to RAM	*/
+				LevelMap_voidSetDepthAt(&(CNC->map), i, j, CNC->stepperArr[Z].currentPos);
+
+				/*	iteration end checks	*/
+				if (j == jFinal)
+					break;
+				if (i % 2)
+					j--;
+				else
+					j++;
+				x += dx;
+			}
+			i++;
+		}
+	}
+
 	/**	go home	**/
 	/*	safety tool up	*/
 	CNC_voidMove3Axis(
@@ -932,6 +1138,40 @@ void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)
 
 	/*	read flash	*/
 	//LevelMap_voidRestoreFromFlash(&(CNC->map));
+}
+
+void CNC_voidExecuteFastAutoLevelingSampling(CNC_t* CNC)
+{
+	/*	Make all elements of the level map = inf (denoting they are not yet sampled)	*/
+	for (u16 i = 0; i < MAP_LEN; i++)
+		CNC->map.mapArr[i] = MAX_S32;
+
+	/*	while G-code file still has un-read lines	*/
+	while(SDC_u8IsThereNextLine(&(CNC->gcodeFile)))
+	{
+		/*
+		 * Read non trajectory code chunk (starting from the first un-read line),
+		 * without executing it:
+		 */
+		read_only_non_traj_chunk(CNC);
+
+		/*	Read and scan trajectory chunk (starting from the first un-read line)	*/
+		read_scan_traj_chunk(CNC);
+	}
+
+	SDC_voidResetLineReader(&(CNC->gcodeFile));
+
+	/*	Zero all non-scanned points, and count them	*/
+	volatile u16 nonScannedCount = 0;
+	for (u16 i = 0; i < MAP_LEN; i++)
+	{
+		if (CNC->map.mapArr[i] == MAX_S32)
+		{
+			CNC->map.mapArr[i] = 0;
+			nonScannedCount++;
+		}
+	}
+	//__BKPT(0);
 }
 
 void CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(
@@ -1570,38 +1810,38 @@ void CNC_voidMoveManual(CNC_t* CNC)
 		{
 		case 'w':
 			CNC_voidMove3Axis(
-				CNC, 0, -8000, 0,
-				8000, 8000, 8000, 8000);
+				CNC, 0, -800, 0,
+				800, 800, 800, 8000);
 			break;
 
 		case 's':
 			CNC_voidMove3Axis(
-				CNC, 0, 8000, 0,
-				8000, 8000, 8000, 8000);
+				CNC, 0, 800, 0,
+				800, 800, 800, 8000);
 			break;
 
 		case 'a':
 			CNC_voidMove3Axis(
-				CNC, -8000, 0, 0,
-				8000, 8000, 8000, 8000);
+				CNC, -800, 0, 0,
+				800, 800, 800, 8000);
 			break;
 
 		case 'd':
 			CNC_voidMove3Axis(
-				CNC, 8000, 0, 0,
-				8000, 8000, 8000, 8000);
+				CNC, 800, 0, 0,
+				800, 800, 800, 8000);
 			break;
 
 		case 'q':
 			CNC_voidMove3Axis(
 				CNC, 0, 0, -200,
-				8000, 8000, 8000, 8000);
+				800, 800, 800, 8000);
 			break;
 
 		case 'e':
 			CNC_voidMove3Axis(
 				CNC, 0, 0, 200,
-				8000, 8000, 8000, 8000);
+				800, 800, 800, 8000);
 			break;
 
 		case '0':
@@ -1673,59 +1913,21 @@ u8 CNC_u8AskNew()
 
 	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 
-	return (ch == 'y');
+	return (ch == 'y' || ch == 'Y');
 }
 
-/*
- * Calling this function after initializing the CNC, shows how much probing speed
- * affects its accuracy.
- *
- * Any ways, this is a problem if the "one-fast, one-accurate" probing mode is enabled.
- */
-void CNC_voidTestOptimumProbingSpeed(CNC_t* CNC)
+u8 CNC_u8AskFastScanMap()
 {
-	/*	Take average of 2 samples at very low speed to be the accurate reference value	*/
-	s32 accurate = 0;
-	for (u8 i = 0; i < 2; i++)
-	{
-		/*	Zero z-axis	*/
-		CNC_voidMove3Axis(
-			CNC,
-			0,
-			0,
-			0 - CNC->stepperArr[Z].currentPos,
-			0, 0,
-			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+	char ch;
 
-		/*	Measure	*/
-		measure_depth(CNC, AL_SLOW_SPEED_TICKS_PER_STEP);
+	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 
-		trace_printf("Slow #%d: %d\n", i, CNC->stepperArr[2].currentPos);
-		accurate += CNC->stepperArr[2].currentPos;
-	}
-	accurate /= 2;
-	trace_printf("accurate: %d\n\n", accurate);
+	UART_voidSendString(UART_UNIT_NUMBER, "Scan a level map for the opened \"FILE.NC\"? (y/else): ");
+	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
 
-	volatile u64 ticksPerStep = AL_SLOW_SPEED_TICKS_PER_STEP / 2;
-	for (u8 i = 0; ; i++)
-	{
-		/*	Zero z-axis	*/
-		CNC_voidMove3Axis(
-			CNC,
-			0,
-			0,
-			0 - CNC->stepperArr[Z].currentPos,
-			0, 0,
-			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 
-		/*	Measure	*/
-		measure_depth(CNC, ticksPerStep);
-
-		s32 err = CNC->stepperArr[2].currentPos - accurate;
-		trace_printf("Fast #%d: %d, w/err: %d\n", i, CNC->stepperArr[2].currentPos, err);
-
-		ticksPerStep /= 2;
-	}
+	return (ch == 'y' || ch == 'Y');
 }
 
 void CNC_voidInfProbing(CNC_t* CNC)
