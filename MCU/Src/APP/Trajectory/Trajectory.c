@@ -312,7 +312,7 @@ void Trajectory_voidPrint(Trajectory_t* traj)
 	for (u32 i = 0; i < traj->numberOfPoints; i++)
 	{
 		Trajectory_voidGetPointAt(traj, i, &p);
-		trace_printf("P#%d: %d, %d, %d, %d\n", i, p.x/800, p.y/800, p.z/800, p.v/800);
+		trace_printf("P#%d: %d, %d, %d, %d\n", i, p.x, p.y, p.z, p.v);
 	}
 }
 

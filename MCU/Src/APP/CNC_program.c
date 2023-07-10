@@ -40,7 +40,7 @@
 
 static u64 ticksPerSecond;
 
-#define MAP_LEN		2200
+#define MAP_LEN		3000
 static s32 mapArr[MAP_LEN];
 
 /*******************************************************************************
@@ -141,7 +141,7 @@ ALWAYS_INLINE_STATIC void read_only_non_traj_chunk(CNC_t* CNC)
 }
 
 /*	Given y value, it returns x value on the line: {pi, pf}	*/
-ALWAYS_INLINE_STATIC s32 get_x_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, s32 y)
+ALWAYS_INLINE_STATIC s32 get_x_on_line(const Trajectory_Point_t* pi, const Trajectory_Point_t* pf, s32 y)
 {
 	s64 d1 = y - pi->y;
 	s64 d2 = pf->x - pi->x;
@@ -152,7 +152,7 @@ ALWAYS_INLINE_STATIC s32 get_x_on_line(Trajectory_Point_t* pi, Trajectory_Point_
 }
 
 /*	Given x value, it returns y value on the line: {pi, pf}	*/
-ALWAYS_INLINE_STATIC s32 get_y_on_line(Trajectory_Point_t* pi, Trajectory_Point_t* pf, s32 x)
+ALWAYS_INLINE_STATIC s32 get_y_on_line(const Trajectory_Point_t* pi, const Trajectory_Point_t* pf, s32 x)
 {
 	s64 d1 = x - pi->x;
 	s64 d2 = pf->y - pi->y;
@@ -162,46 +162,8 @@ ALWAYS_INLINE_STATIC s32 get_y_on_line(Trajectory_Point_t* pi, Trajectory_Point_
 	return y;
 }
 
-//ALWAYS_INLINE_STATIC u64 get_distance_square(s32 x0, s32 x1, s32 y0, s32 y1)
-//{
-//	s64 dx = x1 - x0;
-//	s64 dy = y1 - y0;
-//	u64 dSquared = dx * dx + dy * dy;
-//	return dSquared;
-//}
-
-ALWAYS_INLINE_STATIC u32 get_xy_d(Trajectory_Point_t* pi, Trajectory_Point_t* pf)
-{
-	s64 dx = pf->x - pi->x;
-	s64 dy = pf->y - pi->y;
-
-	u32 d = sqrt(dx*dx + dy*dy);
-	return d;
-}
-
-/*
- * using {x, y} of "pInter", this function interpolates "pi->z" and "pf->z" to
- * get and write "pInter->z".
- */
-ALWAYS_INLINE_STATIC void get_z_inner(Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
-{
-	s64 dTotal = get_xy_d(pi, pf);
-	s64 d = get_xy_d(pi, pInter);
-
-	if (dTotal == 0  &&  d == 0)
-	{
-		pInter->z = pf->z;
-		return;
-	}
-
-	s64 dz = pf->z - pi->z;
-	s64 offset = (dz * d) / dTotal;
-
-	pInter->z = pi->z + (s32)offset;
-}
-
 ALWAYS_INLINE_STATIC void get_next_segment(
-	Trajectory_Point_t* pi, Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
+	Trajectory_Point_t* pi, const Trajectory_Point_t* pf, Trajectory_Point_t* pInter)
 {
 	/*	Move small distance "delta" in the axis of most displacement	*/
 	u32 dx = abs(pf->x - pi->x);
@@ -243,7 +205,7 @@ ALWAYS_INLINE_STATIC void get_next_segment(
 		pInter->x = get_x_on_line(pi, pf, pInter->y);
 	}
 
-	get_z_inner(pi, pf, pInter);
+	pInter->z = pf->z;
 }
 
 ALWAYS_INLINE_STATIC void get_speed_estimation_params(
@@ -320,7 +282,7 @@ ALWAYS_INLINE_STATIC void get_speed_estimation_params(
 }
 
 ALWAYS_INLINE_STATIC u32 get_estimated_speed(
-	Trajectory_Point_t* pi, Trajectory_Point_t* p,
+	const Trajectory_Point_t* pi, const Trajectory_Point_t* p,
 	u32 accel, u32 speedMax, u32 d1, u32 d2)
 {
 	/*	Calculate the distance: {pi, p}	*/
@@ -402,35 +364,35 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 
 	while(1)
 	{
+		s32 zOffset = LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
+
+		//trace_printf("%d, %d, %d, %d\n",pInner0.x, pInner0.y, pInner0.z, pInner0.v);
+		trace_printf("%d, %d\n", pInner0.z, zOffset);
+
+		CNC_voidMove3Axis(
+			CNC,
+			pInner0.x - CNC->stepperArr[0].currentPos,				/*	dx	*/
+			pInner0.y - CNC->stepperArr[1].currentPos,				/*	dy	*/
+			(pInner0.z + zOffset) - CNC->stepperArr[2].currentPos,	/*	dz	*/
+			pInner0.v, pInner0.v,									/*	vi, vf	*/
+			speedMax, CNC->trajectory.feedAccel);
+
+		if (
+			pInner0.x == pf->x	&&
+			pInner0.y == pf->y	&&
+			pInner0.z == pf->z
+			)
+			break;
+
 		get_next_segment(&pInner0, pf, &pInner1);
 
 		pInner1.v = get_estimated_speed(
 			&pi, &pInner1, CNC->trajectory.feedAccel, speedMax, d1, d2);
 
-		s32 zOffset0 = LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
-		s32 zOffset1 = LevelMap_s32GetDepthAt(&(CNC->map), pInner1.x, pInner1.y);
-
-		//trace_printf("%d, %d, %d, %d\n",pInner1.x, pInner1.y, pInner1.z, pInner1.v);
-
-		CNC_voidMove3Axis(
-			CNC,
-			pInner1.x - pInner0.x,								/*	dx	*/
-			pInner1.y - pInner0.y,								/*	dy	*/
-			(pInner1.z + zOffset1) - (pInner0.z + zOffset0),	/*	dz	*/
-			pInner0.v, pInner1.v,								/*	vi, vf	*/
-			speedMax, CNC->trajectory.feedAccel);
-
-		if (
-			pInner1.x == pf->x	&&
-			pInner1.y == pf->y	&&
-			pInner1.z == pf->z
-			)
-			break;
-
 		pInner0 = pInner1;
 	}
 
-	CNC->speedCurrent = pInner1.v;
+	CNC->speedCurrent = pInner0.v;
 }
 
 ALWAYS_INLINE_STATIC void execute_traj(CNC_t* CNC)
@@ -476,50 +438,48 @@ ALWAYS_INLINE_STATIC void scan_between(CNC_t* CNC, Trajectory_Point_t* pi, Traje
 	/*	Movement is segmented/trimmed into smaller movements	*/
 	while(1)
 	{
-		get_next_segment(&pInner0, pf, &pInner1);
-
-		/*	If 'pInner0" is out of the selected level map range, return	*/
-		if (	pInner0.x < CNC->map.sX || pInner0.x > CNC->map.eX	||
-				pInner0.y < CNC->map.sY || pInner0.y > CNC->map.eY	)
+		/*	If 'pInner0" is in the selected level map range	*/
+		if (	!(pInner0.x < CNC->map.sX || pInner0.x > CNC->map.eX	||
+				pInner0.y < CNC->map.sY || pInner0.y > CNC->map.eY)		)
 		{
-			return;
+			/*
+			 * If any of "pInner0"'s 4 surrounding level map points was not scanned
+			 * yet, scan it.
+			 */
+			u8 iP = (u8)((pInner0.y - CNC->map.sY) / CNC->map.dY);
+			u8 jP = (u8)((pInner0.x - CNC->map.sX) / CNC->map.dX);
+
+			s32 xL = CNC->map.sX + ((s32)jP) * CNC->map.dX;
+			s32 yT = CNC->map.sY + ((s32)iP) * CNC->map.dY;
+			s32 xR = xL + CNC->map.dX;
+			s32 yB = yT + CNC->map.dY;
+
+			u16 iTL = iP * CNC->map.nX + jP;
+			u16 iTR = iP * CNC->map.nX + jP+1;
+			u16 iBL = (iP+1) * CNC->map.nX + jP;
+			u16 iBR = (iP+1) * CNC->map.nX + jP+1;
+
+			if (CNC->map.mapArr[iTL] == MAX_S32)
+				CNC->map.mapArr[iTL] = scan_at(CNC, xL, yT);
+
+			if (CNC->map.mapArr[iTR] == MAX_S32)
+				CNC->map.mapArr[iTR] = scan_at(CNC, xR, yT);
+
+			if (CNC->map.mapArr[iBL] == MAX_S32)
+				CNC->map.mapArr[iBL] = scan_at(CNC, xL, yB);
+
+			if (CNC->map.mapArr[iBR] == MAX_S32)
+				CNC->map.mapArr[iBR] = scan_at(CNC, xR, yB);
 		}
 
-		/*
-		 * If any of "pInner0"'s 4 surrounding level map points was not scanned
-		 * yet, scan it.
-		 */
-		u8 iP = (u8)((pInner0.y - CNC->map.sY) / CNC->map.dY);
-		u8 jP = (u8)((pInner0.x - CNC->map.sX) / CNC->map.dX);
-
-		s32 xL = CNC->map.sX + ((s32)jP) * CNC->map.dX;
-		s32 yT = CNC->map.sY + ((s32)iP) * CNC->map.dY;
-		s32 xR = xL + CNC->map.dX;
-		s32 yB = yT + CNC->map.dY;
-
-		u16 iTL = iP * CNC->map.nX + jP;
-		u16 iTR = iP * CNC->map.nX + jP+1;
-		u16 iBL = (iP+1) * CNC->map.nX + jP;
-		u16 iBR = (iP+1) * CNC->map.nX + jP+1;
-
-		if (CNC->map.mapArr[iTL] == MAX_S32)
-			CNC->map.mapArr[iTL] = scan_at(CNC, xL, yT);
-
-		if (CNC->map.mapArr[iTR] == MAX_S32)
-			CNC->map.mapArr[iTR] = scan_at(CNC, xR, yT);
-
-		if (CNC->map.mapArr[iBL] == MAX_S32)
-			CNC->map.mapArr[iBL] = scan_at(CNC, xL, yB);
-
-		if (CNC->map.mapArr[iBR] == MAX_S32)
-			CNC->map.mapArr[iBR] = scan_at(CNC, xR, yB);
-
 		if (
-			pInner1.x == pf->x	&&
-			pInner1.y == pf->y	&&
-			pInner1.z == pf->z
+			pInner0.x == pf->x	&&
+			pInner0.y == pf->y	&&
+			pInner0.z == pf->z
 			)
 			break;
+
+		get_next_segment(&pInner0, pf, &pInner1);
 
 		pInner0 = pInner1;
 	}
@@ -1012,6 +972,12 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	/*	N = V + 3	(G-Code convention)	*/
 	CNC->map.nX = (u8)CNC->point[4] + 3;
 	CNC->map.nY = (u8)CNC->point[5] + 3;
+
+	if (CNC->map.nX * CNC->map.nY > MAP_LEN)
+	{
+		UART_voidSendString(UART_UNIT_NUMBER, "\r\nMAP_LEN is too small!");
+		while(1);
+	}
 
 	CNC->map.sX = CNC->point[0];
 	CNC->map.sY = CNC->point[2];
@@ -1810,38 +1776,38 @@ void CNC_voidMoveManual(CNC_t* CNC)
 		{
 		case 'w':
 			CNC_voidMove3Axis(
-				CNC, 0, -800, 0,
-				800, 800, 800, 8000);
+				CNC, 0, -8000, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 's':
 			CNC_voidMove3Axis(
-				CNC, 0, 800, 0,
-				800, 800, 800, 8000);
+				CNC, 0, 8000, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'a':
 			CNC_voidMove3Axis(
-				CNC, -800, 0, 0,
-				800, 800, 800, 8000);
+				CNC, -8000, 0, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'd':
 			CNC_voidMove3Axis(
-				CNC, 800, 0, 0,
-				800, 800, 800, 8000);
+				CNC, 8000, 0, 0,
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'q':
 			CNC_voidMove3Axis(
 				CNC, 0, 0, -200,
-				800, 800, 800, 8000);
+				8000, 8000, 8000, 8000);
 			break;
 
 		case 'e':
 			CNC_voidMove3Axis(
 				CNC, 0, 0, 200,
-				800, 800, 800, 8000);
+				8000, 8000, 8000, 8000);
 			break;
 
 		case '0':
