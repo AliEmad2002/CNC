@@ -49,6 +49,8 @@ typedef struct
 	 * "step" as length's dimension's unit.
 	 **/
 	Stepper_t stepperArr[3];
+	s32 prevReceivedCoordinates[3];
+	s32 lastCmdZ;
 	DC_Motor_t spindle;
 
 	CNC_Config_t config;

@@ -63,7 +63,7 @@ u8 G_Code_u8FindNumberEnding(char* line, u8 start)
 void G_Code_voidCopyPoint(G_Code_Msg_t* msgPtr)
 {
 	u8 count = msgPtr->paramCount;
-	u8 isCpied[3] = {0};
+	u8 isCpied[3] = {0, 0, 0};
 
 	while(count--)
 	{
@@ -77,7 +77,9 @@ void G_Code_voidCopyPoint(G_Code_Msg_t* msgPtr)
 	for (u8 i = 0; i < 3; i++)
 	{
 		if (isCpied[i] == 0)
-			CNC.point[i] = CNC.stepperArr[i].currentPos;
+			CNC.point[i] = CNC.prevReceivedCoordinates[i];
+		else
+			CNC.prevReceivedCoordinates[i] = CNC.point[i];
 	}
 }
 

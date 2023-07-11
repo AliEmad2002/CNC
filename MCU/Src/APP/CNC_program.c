@@ -2,7 +2,6 @@
  * CNC_program.c
  *
  * Created: 	07/20/2022
- * Last Mod:	23/10/2022
  *  Author: Ali Emad Ali
  */ 
 
@@ -329,23 +328,15 @@ ALWAYS_INLINE_STATIC u32 get_estimated_speed(
  */
 ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 {
-	/*	get initial point (current position of the machine)	*/
-	Trajectory_Point_t pi = {
-		CNC->stepperArr[0].currentPos,
-		CNC->stepperArr[1].currentPos,
-		CNC->stepperArr[2].currentPos,
-		CNC->speedCurrent
-	};
-
 	/*	if auto leveling is not enabled, make the movement at once	*/
 	if (CNC->config.autoLevelingEnabled == 0)
 	{
 		CNC_voidMove3Axis(
 			CNC,
-			pf->x - pi.x,	/*	dx	*/
-			pf->y - pi.y,	/*	dy	*/
-			pf->z - pi.z,	/*	dz	*/
-			pi.v, pf->v,	/*	vi, vf	*/
+			pf->x - CNC->stepperArr[0].currentPos,	/*	dx	*/
+			pf->y - CNC->stepperArr[1].currentPos,	/*	dy	*/
+			pf->z - CNC->stepperArr[2].currentPos,	/*	dz	*/
+			CNC->speedCurrent, pf->v,				/*	vi, vf	*/
 			CNC->trajectory.feedrateMax, CNC->trajectory.feedAccel);
 
 		CNC->speedCurrent = pf->v;
@@ -353,21 +344,26 @@ ALWAYS_INLINE_STATIC void move_to(CNC_t* CNC, Trajectory_Point_t* pf)
 	}
 
 	/*	otherwise, movement is segmented/trimmed into smaller movements	*/
+	Trajectory_Point_t pi = {
+		CNC->stepperArr[0].currentPos,
+		CNC->stepperArr[1].currentPos,
+		CNC->lastCmdZ,
+		CNC->speedCurrent
+	};
+
+	CNC->lastCmdZ = pf->z;
+
+	Trajectory_Point_t pInner0 = pi;
+	Trajectory_Point_t pInner1;
+
 	/*	prepare speed estimation params	*/
 	u32 speedMax, d1, d2;
 	get_speed_estimation_params(
 		&(CNC->trajectory), &pi, pf, &speedMax, &d1, &d2);
 
-	Trajectory_Point_t pInner0 = pi;
-
-	Trajectory_Point_t pInner1;
-
 	while(1)
 	{
 		s32 zOffset = LevelMap_s32GetDepthAt(&(CNC->map), pInner0.x, pInner0.y);
-
-		//trace_printf("%d, %d, %d, %d\n",pInner0.x, pInner0.y, pInner0.z, pInner0.v);
-		trace_printf("%d, %d\n", pInner0.z, zOffset);
 
 		CNC_voidMove3Axis(
 			CNC,
@@ -536,9 +532,9 @@ ALWAYS_INLINE_STATIC void read_execute_traj_chunk(CNC_t* CNC)
 
 	/*	Get machines current position (initial point of this new trajectory)	*/
 	Trajectory_Point_t pFirst = {
-		.x = CNC->stepperArr[0].currentPos,
-		.y = CNC->stepperArr[1].currentPos,
-		.z = CNC->stepperArr[2].currentPos,
+		.x = CNC->prevReceivedCoordinates[0],
+		.y = CNC->prevReceivedCoordinates[1],
+		.z = CNC->prevReceivedCoordinates[2],
 		.v = CNC->speedCurrent
 	};
 
@@ -753,6 +749,12 @@ void CNC_voidInit(CNC_t* CNC)
 	CNC->stepperArr[2].dirPin   = Z_DIR_PIN  % 16;
 	Stepper_voidInit(&(CNC->stepperArr[2]));
 
+	CNC->prevReceivedCoordinates[0] = 0;
+	CNC->prevReceivedCoordinates[1] = 0;
+	CNC->prevReceivedCoordinates[2] = 0;
+
+	CNC->lastCmdZ = 0;
+
 	/*	spindle	*/
 	DC_Motor_voidInit(
 		&(CNC->spindle), SPINDLE_PWM_TIM_UNIT_NUMBER,
@@ -824,6 +826,8 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 			else
 			{
 				G_Code_voidCopyPoint(msgPtr);
+
+				CNC->lastCmdZ = CNC->point[2];
 
 				if (CNC->config.autoLevelingEnabled == 1)
 				{
