@@ -13,16 +13,25 @@
 #include "RCC_interface.h"
 #include "TIM_interface.h"
 #include "GPIO_interface.h"
+#include "STK_interface.h"
+#include "FPEC_interface.h"
+#include "UART_interface.h"
+#include "DMA_interface.h"
 
 #include "Stepper_interface.h"
 #include "DC_Motor_Interface.h"
 #include "Probe.h"
 #include "SDC_interface.h"
+#include "TFT_interface_V2.h"
+#include "Rotary_Encoder_Interface.h"
+#include "Button_interface.h"
 
 #include "G_code_interface.h"
 #include "CNC_config.h"
 #include "LevelMap.h"
 #include "Trajectory.h"
+
+#include "UI/UI_interface.h"
 
 typedef struct
 {
@@ -71,6 +80,9 @@ typedef struct
 	Trajectory_t trajectory;
 
 	char lineStr[MAX_STR_LEN];
+
+	UI_t ui;
+	u32 manualSpeedArr[3];
 }CNC_t;
 
 typedef enum{
@@ -162,9 +174,6 @@ void CNC_voidUseMetricUnits(CNC_t* CNC);
 
 /*	makes manual movement	*/
 void CNC_voidMoveManual(CNC_t* CNC);
-
-/*	Changes RAM stored position	*/
-void CNC_voidChangeRamPos(CNC_t* CNC);
 
 /*	starts executing "FILE.NC" G-code file	*/
 void CNC_voidRunGcodeFile(CNC_t* CNC);

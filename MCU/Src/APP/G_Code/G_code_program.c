@@ -15,16 +15,15 @@
 #include "My_Math.h"
 #include "My_String.h"
 
-/*	MCAL	*/
-#include "UART_interface.h"
-
 /*	self	*/
 #include "G_code_interface.h"
+
+/*	APP	*/
+#include "CNC_interface.h"
 
 #define ACCELFEED_INDEX		1
 #define ACCELRAPID_INDEX	2
 
-#include "CNC_interface.h"
 extern CNC_t CNC;
 
 void G_Code_voidCopyMsg(G_Code_Msg_t** copyPtrPtr, G_Code_Msg_t* originalPtr)

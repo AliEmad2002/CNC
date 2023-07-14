@@ -57,9 +57,6 @@ int main(void)
 		/*	Make manual movement	*/
 		CNC_voidMoveManual(&CNC);
 
-		/*	Change RAM stored position	*/
-		CNC_voidChangeRamPos(&CNC);
-
 		/*	Run G-code file from the SD-card	*/
 		CNC_voidRunGcodeFile(&CNC);
 

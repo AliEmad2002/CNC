@@ -21,19 +21,10 @@
 #include "diag/trace.h"
 #include "Trajectory.h"
 
-/*	MCAL	*/
-#include "RCC_interface.h"
-#include "TIM_interface.h"
-#include "GPIO_interface.h"
-#include "STK_interface.h"
-#include "FPEC_interface.h"
-#include "UART_interface.h"
-
 /*	SELF	*/
 #include "CNC_private.h"
 #include "CNC_config.h"
 #include "CNC_interface.h"
-
 
 #define MAX_S32			(2147483647)
 
@@ -41,6 +32,11 @@ static u64 ticksPerSecond;
 
 #define MAP_LEN		3000
 static s32 mapArr[MAP_LEN];
+
+/*******************************************************************************
+ * Static variables:
+ ******************************************************************************/
+static char* const yesNochoicesArr[] = {"No", "Yes"};
 
 /*******************************************************************************
  * Static (private) functions:
@@ -76,8 +72,6 @@ ALWAYS_INLINE_STATIC void parse_execute_line(CNC_t* CNC)
 	/*	if parsing failed, skip this line (comment or empty line)	*/
 	if (!parseSuccess)
 	{
-//		trace_printf("Could not parse G-code line:\n");
-//		trace_printf("%s\n", CNC->lineStr);
 		return;
 	}
 
@@ -559,8 +553,6 @@ ALWAYS_INLINE_STATIC void read_execute_traj_chunk(CNC_t* CNC)
 			/*	if parsing failed, skip this line (comment or empty line)	*/
 			if (!parseSuccess)
 			{
-//				trace_printf("Could not parse G-code line:\n");
-//				trace_printf("%s\n", CNC->lineStr);
 				continue;
 			}
 
@@ -616,8 +608,6 @@ ALWAYS_INLINE_STATIC void read_scan_traj_chunk(CNC_t* CNC)
 			/*	if parsing failed, skip this line (comment or empty line)	*/
 			if (!parseSuccess)
 			{
-//				trace_printf("Could not parse G-code line:\n");
-//				trace_printf("%s\n", CNC->lineStr);
 				continue;
 			}
 
@@ -650,22 +640,47 @@ ALWAYS_INLINE_STATIC void read_scan_traj_chunk(CNC_t* CNC)
 	scan_traj(CNC);
 }
 
-static f32 get_uart_num(void)
-{
-	char str[UART_MAX_STRLEN];
-	UART_voidReceiveUntilByte(UART_UNIT_NUMBER, str, '\r');
-	return Math_f32StrToFloat(str, 0, strlen(str) - 1);
-}
-
 static void tool_change(CNC_t* CNC)
 {
 #if SIMULATION_ON
 	return;
 #endif
 
-	UART_voidSendString(UART_UNIT_NUMBER, "Entered tool change mode\r\n");
-	CNC_voidMoveManual(CNC);
-	CNC_voidChangeRamPos(CNC);
+	u8 choice;
+
+	static char* const choicesArr[] = {
+		"Change speed",
+		"Zero the z axis",
+		"Exit"
+	};
+
+	while(1)
+	{
+		/*	user move	*/
+		UI_voidClear(&(CNC->ui));
+		UI_voidPrintStr(&(CNC->ui), "Tool change:");
+		UI_voidMoveAxis(&(CNC->ui), CNC->stepperArr, CNC->manualSpeedArr, 2);
+
+		/*	if user pressed the button	*/
+		UI_voidClear(&(CNC->ui));
+		choice = UI_u8Interact(&(CNC->ui), "Tool change:", (char**)choicesArr, 3);
+
+		UI_voidClear(&(CNC->ui));
+		switch(choice)
+		{
+		case 0:
+			UI_voidPrintStr(&(CNC->ui), "Tool change:");
+			UI_voidSetSpeed(&(CNC->ui), CNC->manualSpeedArr, 2);
+			break;
+
+		case 1:
+			CNC->stepperArr[2].currentPos = 0;
+			return;
+
+		case 2:
+			return;
+		}
+	}
 }
 
 void measure_depth(CNC_t* CNC, u64 ticksPerStep)
@@ -708,11 +723,8 @@ void measure_depth(CNC_t* CNC, u64 ticksPerStep)
 			 */
 			if (steps > MAX_PROBE_STEPS)
 			{
-				char ch = '\0';
-				UART_voidSendString(UART_UNIT_NUMBER, "\r\nSafe probing limit reached! y: continue.");
-				while(ch != 'y')
-					UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
-				steps = 0;
+				if (UI_u8Interact(&(CNC->ui),"Safe probing limit reached! continue probing?", (char**)yesNochoicesArr, 2))
+					steps = 0;
 			}
 		}
 
@@ -722,6 +734,8 @@ void measure_depth(CNC_t* CNC, u64 ticksPerStep)
 		/*	update current timestamp	*/
 		timeCurrent = STK_u64GetElapsedTicks();
 	}
+
+	UI_voidClear(&(CNC->ui));
 }
 
 static inline void home_xy(CNC_t* CNC)
@@ -812,6 +826,23 @@ void CNC_voidInit(CNC_t* CNC)
 	 * the function "STK_u32GetTicksPerSecond()" frequently.
 	 */
 	ticksPerSecond = STK_u32GetTicksPerSecond();
+
+	/*	UI	*/
+	CNC->ui.button.outPort = BUTTON_PIN / 16;
+	CNC->ui.button.outPin = BUTTON_PIN % 16;
+	CNC->ui.button.msBouncingDelay = BUTTON_BOUNCING_DELAY_MS;
+
+	CNC->ui.rotary.outAPort = ROTARY_A_PIN / 16;
+	CNC->ui.rotary.outAPin = ROTARY_A_PIN % 16;
+	CNC->ui.rotary.outBPort = ROTARY_B_PIN / 16;
+	CNC->ui.rotary.outBPin = ROTARY_B_PIN % 16;
+	CNC->ui.rotary.isEnabled = 1;
+
+	TFT2_voidInit(
+		&(CNC->ui.tft), TFT_SPI_UNIT_NUMBER, TFT_SPI_AFIO_MAP, TFT_RST_PIN, TFT_A0_PIN,
+		TFT_TIM_UNIT_NUMBER, TFT_TIM_CHANNEL_NUMBER, TFT_TIM_AFIO_MAP);
+
+	UI_voidInit(&(CNC->ui));
 
 	/*	Move x and y axis till they hit the limit switches, and reset their position values	*/
 	home_xy(CNC);
@@ -904,6 +935,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 
 		default:
 			/*	log that a command was not recognized	*/
+			UI_voidPrintStr(&(CNC->ui), "SW error! please make sure debugger is connected and running");
 			trace_printf("command not recognized. please look at \"msgPtr\" before continuing\n");
 			u8 cont = 0;
 			__BKPT(0);
@@ -946,6 +978,7 @@ void CNC_voidExecute(CNC_t* CNC, G_Code_Msg_t* msgPtr)
 
 		default:
 			/*	log that a command was not recognized	*/
+			UI_voidPrintStr(&(CNC->ui), "SW error! please make sure debugger is connected and running");
 			trace_printf("command not recognized. please look at \"msgPtr\" before continuing\n");
 			u8 cont = 0;
 			__BKPT(0);
@@ -987,12 +1020,10 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	CNC->stepperArr[Z].currentPos = 0;
 
 	/*	Restore map from SD-card?	*/
-	UART_voidSendString(UART_UNIT_NUMBER, "\r\nRstore map from SD-card? (y/other): ");
-	char ch = '\0';
-	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
-	if (ch == 'y' || ch == 'Y')
+	if (UI_u8Interact(&(CNC->ui),"Rstore map from SD-card?", (char**)yesNochoicesArr, 2))
 	{
 		LevelMap_voidRestoreFromSDCard(&CNC->map);
+		UI_voidClear(&(CNC->ui));
 		return;
 	}
 
@@ -1005,7 +1036,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 
 	if (CNC->map.nX * CNC->map.nY > MAP_LEN)
 	{
-		UART_voidSendString(UART_UNIT_NUMBER, "\r\nMAP_LEN is too small!");
+		UI_voidPrintStr(&(CNC->ui), "Requested map size is too large!");
 		while(1);
 	}
 
@@ -1025,7 +1056,7 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	 * Ask user if they want to scan a level map in fast mode for the currently
 	 * open file.
 	 */
-	if (CNC_u8AskFastScanMap())
+	if (UI_u8Interact(&(CNC->ui),"Apply fast scanning mode?", (char**)yesNochoicesArr, 2))
 	{
 		CNC_voidExecuteFastAutoLevelingSampling(CNC);
 	}
@@ -1132,8 +1163,8 @@ void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)
 	/*	enable auto leveling	*/
 	CNC->config.autoLevelingEnabled = 1;
 
-	/*	read flash	*/
-	//LevelMap_voidRestoreFromFlash(&(CNC->map));
+	/*	Restore	*/
+	LevelMap_voidRestoreFromSDCard(&CNC->map);
 }
 
 void CNC_voidExecuteFastAutoLevelingSampling(CNC_t* CNC)
@@ -1167,7 +1198,6 @@ void CNC_voidExecuteFastAutoLevelingSampling(CNC_t* CNC)
 			nonScannedCount++;
 		}
 	}
-	//__BKPT(0);
 }
 
 void CNC_voidGetDistanceMainSegmentsAndUpdateMaximumSpeed(
@@ -1788,96 +1818,58 @@ void CNC_voidUseMetricUnits(CNC_t* CNC)
 
 void CNC_voidMoveManual(CNC_t* CNC)
 {
-#if SIMULATION_ON
-	return;
-#endif
+	u8 axis;
+	u8 choice;
 
-	char ch;
+	static char* const choicesArr1[] = {
+		"x axis",
+		"y axis",
+		"z axis"
+	};
 
-	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
-	UART_voidSendString(UART_UNIT_NUMBER, "Entered manual movement mode\r\n");
-	UART_voidSendString(UART_UNIT_NUMBER, "use w, s, a, d, q, e for movement and 0 for exit\r\n");
+	static char* const choicesArr2[] = {
+		"Change axis",
+		"Change speed",
+		"Exit"
+	};
 
 	while(1)
 	{
-		UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+		UI_voidClear(&(CNC->ui));
+		UI_voidPrintStr(&(CNC->ui), "Manual movement:");
+		axis = UI_u8Interact(&(CNC->ui),"Select axis to move:", (char**)choicesArr1, 3);
 
-		switch(ch)
+		UI_voidClear(&(CNC->ui));
+		UI_voidPrintStr(&(CNC->ui), "Manual movement:");
+		UI_voidMoveAxis(&(CNC->ui), CNC->stepperArr, CNC->manualSpeedArr, axis);
+
+		/*	if user exits the movement	*/
+		UI_voidClear(&(CNC->ui));
+		choice = UI_u8Interact(&(CNC->ui),"Manual movement:", (char**)choicesArr2, 3);
+
+		switch(choice)
 		{
-		case 'w':
-			CNC_voidMove3Axis(
-				CNC, 0, -8000, 0,
-				8000, 8000, 8000, 8000);
+		case 0:
 			break;
 
-		case 's':
-			CNC_voidMove3Axis(
-				CNC, 0, 8000, 0,
-				8000, 8000, 8000, 8000);
+		case 1:
+			UI_voidClear(&(CNC->ui));
+			UI_voidPrintStr(&(CNC->ui), "Manual movement:");
+			UI_voidSetSpeed(&(CNC->ui), CNC->manualSpeedArr, axis);
 			break;
 
-		case 'a':
-			CNC_voidMove3Axis(
-				CNC, -8000, 0, 0,
-				8000, 8000, 8000, 8000);
-			break;
-
-		case 'd':
-			CNC_voidMove3Axis(
-				CNC, 8000, 0, 0,
-				8000, 8000, 8000, 8000);
-			break;
-
-		case 'q':
-			CNC_voidMove3Axis(
-				CNC, 0, 0, -200,
-				8000, 8000, 8000, 8000);
-			break;
-
-		case 'e':
-			CNC_voidMove3Axis(
-				CNC, 0, 0, 200,
-				8000, 8000, 8000, 8000);
-			break;
-
-		case '0':
-			UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
+		case 2:
+			UI_voidClear(&(CNC->ui));
+			if (UI_u8Interact(&(CNC->ui),"Reset positions?", (char**)yesNochoicesArr, 2))
+			{
+				UI_voidClear(&(CNC->ui));
+				CNC->stepperArr[0].currentPos = 0;
+				CNC->stepperArr[1].currentPos = 0;
+				CNC->stepperArr[2].currentPos = 0;
+			}
 			return;
 		}
 	}
-}
-
-void CNC_voidChangeRamPos(CNC_t* CNC)
-{
-	char ch;
-
-	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
-
-	UART_voidSendString(UART_UNIT_NUMBER, "Change x-RAM pos? (y/else): ");
-	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
-	if (ch == 'y')
-	{
-		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter x: ");
-		CNC->stepperArr[0].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[0];
-	}
-
-	UART_voidSendString(UART_UNIT_NUMBER, "\r\nChange y-RAM pos? (y/else): ");
-	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
-	if (ch == 'y')
-	{
-		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter y: ");
-		CNC->stepperArr[1].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[1];
-	}
-
-	UART_voidSendString(UART_UNIT_NUMBER, "\r\nChange z-RAM pos? (y/else): ");
-	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
-	if (ch == 'y')
-	{
-		UART_voidSendString(UART_UNIT_NUMBER, "\r\nEnter z: ");
-		CNC->stepperArr[2].currentPos = get_uart_num() * CNC->config.stepsPerLengthUnit[2];
-	}
-
-	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 }
 
 void CNC_voidRunGcodeFile(CNC_t* CNC)
@@ -1898,55 +1890,10 @@ void CNC_voidRunGcodeFile(CNC_t* CNC)
 	SDC_voidResetLineReader(&(CNC->gcodeFile));
 }
 
-u8 CNC_u8AskNew()
+u8 CNC_u8AskNew(CNC_t* CNC)
 {
-	char ch;
-
-	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
-
-	UART_voidSendString(UART_UNIT_NUMBER, "Make new operation from \"FILE.NC\"? (y/else): ");
-	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
-
-	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
-
-	return (ch == 'y' || ch == 'Y');
+	return UI_u8Interact(&(CNC->ui),"Make new operation from the next \"x.NC\"?", (char**)yesNochoicesArr, 2);
 }
-
-u8 CNC_u8AskFastScanMap()
-{
-	char ch;
-
-	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
-
-	UART_voidSendString(UART_UNIT_NUMBER, "Scan a level map for the opened \"FILE.NC\"? (y/else): ");
-	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
-
-	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
-
-	return (ch == 'y' || ch == 'Y');
-}
-
-void CNC_voidInfProbing(CNC_t* CNC)
-{
-	while(1)
-	{
-		/*	Zero z-axis	*/
-		CNC_voidMove3Axis(
-			CNC,
-			0,
-			0,
-			0 - CNC->stepperArr[Z].currentPos,
-			0, 0,
-			CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
-
-		/*	Probe	*/
-		CNC_voidProbe(CNC);
-
-		/*	Print depth	*/
-		trace_printf("d = %d\n", CNC->stepperArr[Z].currentPos);
-	}
-}
-
 
 
 

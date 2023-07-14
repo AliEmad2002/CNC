@@ -50,7 +50,7 @@ void EXTI_voidSetTriggeringEdge(u8 line, EXTI_Trigger_t edge);
 
 void EXTI_voidSoftwareTrigger(u8 line);
 
-void EXTI_voidSetCallBack(u8 line, void(*callBack)(void));
+void EXTI_voidSetCallBack(u8 line, void(*callBack)(void), void* args);
 
 /*
  * assigns a pin to the EXTI line.
