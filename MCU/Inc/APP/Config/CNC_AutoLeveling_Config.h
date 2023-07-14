@@ -16,7 +16,7 @@
 /*
  * Safety parameter to avoid miss contact machine self-destruction. (in steps)
  */
-#define MAX_PROBE_STEPS						(30 * STEPS_PER_MM)		// 30mm
+#define MAX_PROBE_STEPS						(5 * STEPS_PER_MM)		// 5mm
 
 /*
  * Enough air Z-axis distance between bit and material while scanning depth map
@@ -27,7 +27,7 @@
  * enough air Z-axis distance between bit and material after scanning depth map
  * (must be valid and safe along the whole map @ AL disabled)
  */
-#define AUTO_LEVELING_UP_MAX				(10 * STEPS_PER_MM)		// 10mm
+#define AUTO_LEVELING_UP_MAX				(5 * STEPS_PER_MM)		// 5mm
 
 /*	how much will dx, dy be trimmed	*/
 #define AL_GRID_TRIMMER						20
@@ -35,8 +35,6 @@
 /*	probing speed inverse	*/
 #define AL_SLOW_SPEED_TICKS_PER_STEP		(4000 * (72 / 8))
 #define AL_FAST_SPEED_TICKS_PER_STEP		(3200 * (72 / 8))
-
-#define AUTO_LEVELING_FLASH_BASE_PAGE		55
 
 /*
  * Probing modes: (un-comment the mode to be used only)

@@ -51,6 +51,7 @@ typedef struct
 	Stepper_t stepperArr[3];
 	s32 prevReceivedCoordinates[3];
 	s32 lastCmdZ;
+
 	DC_Motor_t spindle;
 
 	CNC_Config_t config;
@@ -65,6 +66,7 @@ typedef struct
 
 	SDC_t sdCard;
 	SD_Stream_t gcodeFile;
+	SD_Stream_t systemState;
 
 	Trajectory_t trajectory;
 

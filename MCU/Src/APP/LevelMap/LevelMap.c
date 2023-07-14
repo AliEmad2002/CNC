@@ -13,6 +13,9 @@
 /*	MCAL	*/
 #include "FPEC_interface.h"
 
+/*	HAL	*/
+#include "SDC_interface.h"
+
 /*	SELF	*/
 #include "LevelMap.h"
 
@@ -65,62 +68,45 @@ s32 LevelMap_s32GetDepthAt(LevelMap_t* map, s32 x, s32 y)
 	return (s32)d;
 }
 
-void LevelMap_voidStoreToFlash(LevelMap_t* map)
+void LevelMap_voidSaveOnSDCard(LevelMap_t* map)
 {
-	/*	unlock	*/
-	if (FPEC_b8IsLocked())
-		FPEC_voidUnlock();
-
-	u8 base = map->flashSavingBasePage;
-
-	/*	erase pages from base page to end of flash	*/
-	FPEC_voidEnablePageEraseMode();
-	for (u8 i = base; i < 64; i++)
-		FPEC_voidErasePage(i);
-	FPEC_voidDisablePageEraseMode();
-
-	FPEC_voidEnableProgrammingMode();
-
 	/*	store parameters of the map	*/
-	FPEC_voidProgramHalfWord(FPEC_HALF_WORD_ADDRESS(base, 0), map->nX);
-	FPEC_voidProgramHalfWord(FPEC_HALF_WORD_ADDRESS(base, 1), map->nY);
+	SDC_voidKeepTryingWriteStream(&(map->stream), 0, (u8*)&(map->nX), 1);
+	SDC_voidKeepTryingWriteStream(&(map->stream), 1, (u8*)&(map->nY), 1);
 
-	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 2), map->sX);
-	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 4), map->sY);
+	SDC_voidKeepTryingWriteStream(&(map->stream), 2, (u8*)&(map->sX), 4);
+	SDC_voidKeepTryingWriteStream(&(map->stream), 6, (u8*)&(map->sY), 4);
 
-	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 6), map->eX);
-	FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 8), map->eY);
+	SDC_voidKeepTryingWriteStream(&(map->stream), 10, (u8*)&(map->eX), 4);
+	SDC_voidKeepTryingWriteStream(&(map->stream), 14, (u8*)&(map->eY), 4);
 
 	/*	store the map itself	*/
 	u32 n = map->nX * map->nY;
 	for (u32 i = 0; i < n; i++)
 	{
-		FPEC_voidProgramWord(FPEC_HALF_WORD_ADDRESS(base, 10 + 2*i), map->mapArr[i]);
+		SDC_voidKeepTryingWriteStream(&(map->stream), 18 + i * 4, (u8*)&(map->mapArr[i]), 4);
 	}
 
+	SDC_voidKeepTryingSaveStream(&(map->stream));
 }
 
-void LevelMap_voidRestoreFromFlash(LevelMap_t* map)
+void LevelMap_voidRestoreFromSDCard(LevelMap_t* map)
 {
-	if (FPEC_b8IsLocked())
-		FPEC_voidUnlock();
+	/*	restore parameters of the map	*/
+	SDC_voidKeepTryingReadStream(&(map->stream), 0, &(map->nX), 1);
+	SDC_voidKeepTryingReadStream(&(map->stream), 1, &(map->nY), 1);
 
-	/*	N's	*/
-	u8 base = map->flashSavingBasePage;
-	map->nX = FPEC_u16ReadHalfWord(FPEC_HALF_WORD_ADDRESS(base, 0));
-	map->nY = FPEC_u16ReadHalfWord(FPEC_HALF_WORD_ADDRESS(base, 1));
+	SDC_voidKeepTryingReadStream(&(map->stream), 2, (u8*)&(map->sX), 4);
+	SDC_voidKeepTryingReadStream(&(map->stream), 6, (u8*)&(map->sY), 4);
 
-	/*	boundaries	*/
-	map->sX = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(base, 2));
-	map->sY = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(base, 4));
-	map->eX = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(base, 6));
-	map->eY = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(base, 8));
+	SDC_voidKeepTryingReadStream(&(map->stream), 10, (u8*)&(map->eX), 4);
+	SDC_voidKeepTryingReadStream(&(map->stream), 14, (u8*)&(map->eY), 4);
 
-	/*	samples	*/
+	/*	restore the map itself	*/
 	u32 n = map->nX * map->nY;
 	for (u32 i = 0; i < n; i++)
 	{
-		map->mapArr[i] = FPEC_u32ReadWord(FPEC_HALF_WORD_ADDRESS(base, 10 + 2*i));
+		SDC_voidKeepTryingReadStream(&(map->stream), 18 + i * 4, (u8*)&(map->mapArr[i]), 4);
 	}
 
 	/*	init d's	*/

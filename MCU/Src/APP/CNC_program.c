@@ -569,6 +569,10 @@ ALWAYS_INLINE_STATIC void read_execute_traj_chunk(CNC_t* CNC)
 
 			/*	Add point "p" to the trajectory object	*/
 			Trajectory_voidAddPoint(&(CNC->trajectory), &p);
+
+			CNC->prevReceivedCoordinates[0] = p.x;
+			CNC->prevReceivedCoordinates[1] = p.y;
+			CNC->prevReceivedCoordinates[2] = p.z;
 		}
 
 		/*	otherwise, set "stream->reader" back to first of this last read line, and break	*/
@@ -704,10 +708,11 @@ void measure_depth(CNC_t* CNC, u64 ticksPerStep)
 			 */
 			if (steps > MAX_PROBE_STEPS)
 			{
-				trace_printf("Safe probing limit reached!\n");
-				volatile u8 stop = 1;
-				__BKPT(0);
-				while(stop);
+				char ch = '\0';
+				UART_voidSendString(UART_UNIT_NUMBER, "\r\nSafe probing limit reached! y: continue.");
+				while(ch != 'y')
+					UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+				steps = 0;
 			}
 		}
 
@@ -717,6 +722,11 @@ void measure_depth(CNC_t* CNC, u64 ticksPerStep)
 		/*	update current timestamp	*/
 		timeCurrent = STK_u64GetElapsedTicks();
 	}
+}
+
+static inline void home_xy(CNC_t* CNC)
+{
+
 }
 
 /*******************************************************************************
@@ -764,6 +774,8 @@ void CNC_voidInit(CNC_t* CNC)
 	SDC_voidKeepTryingInitConnection(&(CNC->sdCard), 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
 	SDC_voidKeepTryingInitPartition(&(CNC->sdCard));
 
+	SDC_voidKeepTryingOpenStream(&(CNC->systemState), &(CNC->sdCard), "SYS.RFS");
+
 	/*	Trajectory RFS	*/
 	CNC->trajectory.numberOfPoints = 0;
 	SDC_voidKeepTryingOpenStream(&(CNC->trajectory.stream), &(CNC->sdCard), "TRAJ.RFS");
@@ -786,10 +798,11 @@ void CNC_voidInit(CNC_t* CNC)
 	CNC->config.stepsPerLengthUnit[2] = STEPS_PER_MM;
 
 	/*	map	*/
-	CNC->map.flashSavingBasePage = AUTO_LEVELING_FLASH_BASE_PAGE;
 	CNC->map.mapArr = mapArr;
 	for (u16 i = 0; i < MAP_LEN; i++)
 		mapArr[i] = 0;
+
+	SDC_voidKeepTryingOpenStream(&(CNC->map.stream), &(CNC->sdCard), "MAP.RFS");
 
 	/*	obviously, machine've just started	*/
 	CNC->speedCurrent = 0;
@@ -799,6 +812,9 @@ void CNC_voidInit(CNC_t* CNC)
 	 * the function "STK_u32GetTicksPerSecond()" frequently.
 	 */
 	ticksPerSecond = STK_u32GetTicksPerSecond();
+
+	/*	Move x and y axis till they hit the limit switches, and reset their position values	*/
+	home_xy(CNC);
 }
 
 void CNC_voidExecuteSoftwareSetPosition(CNC_t* CNC)
@@ -970,7 +986,17 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	/*	reset z-displacement variable	*/
 	CNC->stepperArr[Z].currentPos = 0;
 
-	/**	store and init params	**/
+	/*	Restore map from SD-card?	*/
+	UART_voidSendString(UART_UNIT_NUMBER, "\r\nRstore map from SD-card? (y/other): ");
+	char ch = '\0';
+	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+	if (ch == 'y' || ch == 'Y')
+	{
+		LevelMap_voidRestoreFromSDCard(&CNC->map);
+		return;
+	}
+
+	/**	init params	**/
 	CNC->config.autoLevelingEnabled = 1;
 
 	/*	N = V + 3	(G-Code convention)	*/
@@ -1097,8 +1123,8 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 		CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
 #endif
 
-	/**	store in flash	**/
-	//LevelMap_voidStoreToFlash(&(CNC->map));
+	/**	store on SD-card	**/
+	LevelMap_voidSaveOnSDCard(&CNC->map);
 }
 
 void CNC_voidExecuteRestoreSavedAutoLevelingData(CNC_t* CNC)

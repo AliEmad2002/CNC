@@ -23,11 +23,7 @@ typedef struct{
 	s32 dX;
 	s32 dY;
 
-	/*
-	 * number of the flash page at which program starts storing / restoring the
-	 * 'LevelMap_t' object data.
-	 */
-	u8 flashSavingBasePage;
+	SD_Stream_t stream;
 }LevelMap_t;
 
 void LevelMap_voidInit(LevelMap_t* map);	// evaluates dX, dY
@@ -46,13 +42,15 @@ void LevelMap_voidSetDepthAt(LevelMap_t* map, u8 cellY, u8 cellX, s32 depth);
  */
 s32 LevelMap_s32GetDepthAt(LevelMap_t* map, s32 x, s32 y);
 
-void LevelMap_voidStoreToFlash(LevelMap_t* map);
+/*
+ * Saves the map array currently available in RAM to the file "MAP.RFS" on SD-card
+ */
+void LevelMap_voidSaveOnSDCard(LevelMap_t* map);
 
 /*
- * restores previously sampled working area. (useful at restoring system after
- * unexpected power reset, as it saves probing time)
+ * Loads data from "MAP.RFS" on SD-card to RAM.
  */
-void LevelMap_voidRestoreFromFlash(LevelMap_t* map);
+void LevelMap_voidRestoreFromSDCard(LevelMap_t* map);
 
 
 
