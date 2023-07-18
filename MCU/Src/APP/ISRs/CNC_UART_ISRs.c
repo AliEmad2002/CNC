@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "Queue_interface.h"
 #include "Delay_interface.h"
 #include "Target_config.h"
 #include <diag/trace.h>

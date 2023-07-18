@@ -22,6 +22,9 @@ typedef struct
 	u8 dirPort  : 4;
 	u8 dirPin   : 4;
 	
+	u8 enPort  : 4;
+	u8 enPin   : 4;
+
 	/*	last time the object stepped	*/
 	u64 lastTimeStamp;
 	
@@ -39,6 +42,11 @@ typedef enum{
  * zeros its time-stamp and position.
  */
 void Stepper_voidInit(Stepper_t* stepperPtr);
+
+
+void Stepper_voidEnable(Stepper_t* stepperPtr);
+
+void Stepper_voidDisable(Stepper_t* stepperPtr);
 
 /*
  * steps the object in wanted direction by one steep, and stamps current time.

@@ -54,11 +54,30 @@ int main(void)
 		/*	Open G-code file	*/
 		SDC_voidKeepTryingOpenStream(&(CNC.gcodeFile), &(CNC.sdCard), fileNameStr);
 
+		/*	Enable steppers	*/
+		Stepper_voidEnable(&(CNC.stepperArr[0]));
+		Stepper_voidEnable(&(CNC.stepperArr[1]));
+		Stepper_voidEnable(&(CNC.stepperArr[2]));
+
+		/*	Run homing sequence	*/
+		CNC_voidHomingSeq(&CNC);
+
 		/*	Make manual movement	*/
 		CNC_voidMoveManual(&CNC);
 
+		/*
+		 * Ask user if they want to move to the previously saved zero position and
+		 * set it as the new zero.
+		 */
+		CNC_voidAskMovePrevZero(&CNC);
+
 		/*	Run G-code file from the SD-card	*/
 		CNC_voidRunGcodeFile(&CNC);
+
+		/*	Disable steppers	*/
+		Stepper_voidDisable(&(CNC.stepperArr[0]));
+		Stepper_voidDisable(&(CNC.stepperArr[1]));
+		Stepper_voidDisable(&(CNC.stepperArr[2]));
 
 		/*	Ask user if they want to do a new operation	*/
 		if (CNC_u8AskNew(&CNC))

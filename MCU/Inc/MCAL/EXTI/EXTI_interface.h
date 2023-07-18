@@ -32,7 +32,7 @@ u8 EXTI_u8FindVector(u8 line);
  */
 void EXTI_voidEnableLineInterrupt(u8 line);
 
-void EXTI_voidDisbleLineInterrupt(u8 line);
+void EXTI_voidDisableLineInterrupt(u8 line);
 
 /*	Enables line in EXTI itself	*/
 void EXTI_voidEnableLine(u8 line);

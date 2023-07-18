@@ -53,7 +53,7 @@ inline void EXTI_voidEnableLineInterrupt(u8 line)
 	NVIC_voidEnableInterrupt(EXTI_u8FindVector(line));
 }
 
-inline void EXTI_voidDisbleLineInterrupt(u8 line)
+inline void EXTI_voidDisableLineInterrupt(u8 line)
 {
 	NVIC_voidDisableInterrupt(EXTI_u8FindVector(line));
 }

@@ -52,9 +52,6 @@ void CNC_voidInitMCAL(void)
 void CNC_voidInitFPU(void)
 {
 	/*	only if the used target has one	*/
-	#if TARGET_ID == STM32F401x
-	FPU_voidEnable();
-	#endif
 }
 
 void CNC_voidInitRCC(void)
@@ -63,21 +60,19 @@ void CNC_voidInitRCC(void)
 	RCC_voidSysClockInit();
 
 	/**	Enable GPIO ports	**/
-	/*	Things for STM32f1x only:	*/
-	#if TARGET_ID == STM32F10x
 	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_AFIO);
-	RCC_Bus_t gpioBus = RCC_Bus_APB2;
+	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_IOPA);
+	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_IOPC);
+	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_IOPB);
 
-	/*	Things for STM32f401x only:	*/
-	#elif TARGET_ID == STM32F401x
-	RCC_Bus_t gpioBus = RCC_Bus_AHB1;
-	#endif
-
-	/*	Things for both	*/
-	RCC_voidEnablePeripheralClk(gpioBus, RCC_PERIPHERAL_IOPA);
-	RCC_voidEnablePeripheralClk(gpioBus, RCC_PERIPHERAL_IOPC);
-	RCC_voidEnablePeripheralClk(gpioBus, RCC_PERIPHERAL_IOPB);
+	/**	Enable UART	**/
 	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_USART1);
+
+	/**	Enable SPI	**/
+	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_SPI1);
+
+	/**	Enable EXTI	**/
+	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_EXTI);
 
 	/**	Enable timers	**/
 	RCC_voidEnablePeripheralClk(RCC_Bus_APB2, RCC_PERIPHERAL_TIM1);
@@ -117,7 +112,15 @@ void CNC_voidInitNVIC(void)
 {
 	SCB_voidSetPriorityGroupsAndSubGroupsNumber(SCB_PRIGROUP_group4_sub4);
 
+	/*	SysTick is of highest priority	*/
 	NVIC_voidSetInterruptPriority(NVIC_Interrupt_Systick, 0, 0);
-	NVIC_voidSetInterruptPriority(NVIC_Interrupt_USART1, 1, 0);
-	NVIC_voidSetInterruptPriority(NVIC_Interrupt_USART2, 1, 0);
+
+	/*	Limit switches are of normal priorities	*/
+	NVIC_voidSetInterruptPriority(EXTI_u8FindVector(X_LIM_PIN%16), 1, 0);
+	NVIC_voidSetInterruptPriority(EXTI_u8FindVector(Y_LIM_PIN%16), 1, 0);
+	NVIC_voidSetInterruptPriority(EXTI_u8FindVector(Z_LIM_PIN%16), 1, 0);
+
+	/*	UART is of lowest priority	*/
+	NVIC_voidSetInterruptPriority(NVIC_Interrupt_USART1, 2, 0);
+	NVIC_voidSetInterruptPriority(NVIC_Interrupt_USART2, 2, 0);
 }

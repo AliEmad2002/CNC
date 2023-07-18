@@ -32,10 +32,27 @@ void Stepper_voidInit(Stepper_t* stepperPtr)
 {
 	GPIO_voidSetPinGpoPushPull(stepperPtr->stepPort, stepperPtr->stepPin);
 	GPIO_voidSetPinGpoPushPull(stepperPtr->dirPort, stepperPtr->dirPin);
+	GPIO_voidSetPinGpoPushPull(stepperPtr->enPort, stepperPtr->enPin);
+
+	/*	initially disabled	*/
+	Stepper_voidDisable(stepperPtr);
 
 	/*	init parameters	*/
 	stepperPtr->lastTimeStamp = 0;
 	stepperPtr->currentPos = 0;
+}
+
+__attribute__((always_inline)) inline
+void Stepper_voidEnable(Stepper_t* stepperPtr)
+{
+	GPIO_voidSetPinOutputLevel(
+		stepperPtr->enPort, stepperPtr->enPin, GPIO_OutputLevel_Low);
+}
+__attribute__((always_inline)) inline
+void Stepper_voidDisable(Stepper_t* stepperPtr)
+{
+	GPIO_voidSetPinOutputLevel(
+		stepperPtr->enPort, stepperPtr->enPin, GPIO_OutputLevel_High);
 }
 
 /*

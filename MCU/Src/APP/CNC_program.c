@@ -738,9 +738,12 @@ void measure_depth(CNC_t* CNC, u64 ticksPerStep)
 	UI_voidClear(&(CNC->ui));
 }
 
-static inline void home_xy(CNC_t* CNC)
+static void limit_switch_callback(void* CNCptr)
 {
+	CNC_t* CNC = (CNC_t*)CNCptr;
 
+	UI_voidPrintStr(&(CNC->ui),"Limit switch was hit!");
+	while(1);
 }
 
 /*******************************************************************************
@@ -844,8 +847,30 @@ void CNC_voidInit(CNC_t* CNC)
 
 	UI_voidInit(&(CNC->ui));
 
-	/*	Move x and y axis till they hit the limit switches, and reset their position values	*/
-	home_xy(CNC);
+	/*	Limit switches	*/
+	CNC->limSwArr[0].port = X_LIM_PIN / 16;
+	CNC->limSwArr[0].pin  = X_LIM_PIN % 16;
+
+	CNC->limSwArr[1].port = Y_LIM_PIN / 16;
+	CNC->limSwArr[1].pin  = Y_LIM_PIN % 16;
+
+	CNC->limSwArr[2].port = Z_LIM_PIN / 16;
+	CNC->limSwArr[2].pin  = Z_LIM_PIN % 16;
+
+	LimitSwitch_voidInit((void*)CNC, limit_switch_callback);
+	LimitSwitch_voidInit((void*)CNC, limit_switch_callback);
+	LimitSwitch_voidInit((void*)CNC, limit_switch_callback);
+
+	/*	Run homing sequence, and reset steppers position values	*/
+	Stepper_voidEnable(&(CNC->stepperArr[0]));
+	Stepper_voidEnable(&(CNC->stepperArr[1]));
+	Stepper_voidEnable(&(CNC->stepperArr[2]));
+
+	CNC_voidHomingSeq(CNC);
+
+	Stepper_voidDisable(&(CNC->stepperArr[0]));
+	Stepper_voidDisable(&(CNC->stepperArr[1]));
+	Stepper_voidDisable(&(CNC->stepperArr[2]));
 }
 
 void CNC_voidExecuteSoftwareSetPosition(CNC_t* CNC)
@@ -1863,6 +1888,12 @@ void CNC_voidMoveManual(CNC_t* CNC)
 			if (UI_u8Interact(&(CNC->ui),"Reset positions?", (char**)yesNochoicesArr, 2))
 			{
 				UI_voidClear(&(CNC->ui));
+
+				SDC_voidKeepTryingWriteStream(&(CNC->systemState), 0 * sizeof(s32), (u8*)&(CNC->stepperArr[0].currentPos), sizeof(s32));
+				SDC_voidKeepTryingWriteStream(&(CNC->systemState), 1 * sizeof(s32), (u8*)&(CNC->stepperArr[1].currentPos), sizeof(s32));
+				SDC_voidKeepTryingWriteStream(&(CNC->systemState), 2 * sizeof(s32), (u8*)&(CNC->stepperArr[2].currentPos), sizeof(s32));
+				SDC_voidKeepTryingSaveStream(&(CNC->systemState));
+
 				CNC->stepperArr[0].currentPos = 0;
 				CNC->stepperArr[1].currentPos = 0;
 				CNC->stepperArr[2].currentPos = 0;
@@ -1895,9 +1926,107 @@ u8 CNC_u8AskNew(CNC_t* CNC)
 	return UI_u8Interact(&(CNC->ui),"Make new operation from the next \"x.NC\"?", (char**)yesNochoicesArr, 2);
 }
 
+void CNC_voidHomingSeq(CNC_t* CNC)
+{
+	u64 currentTime = STK_u64GetElapsedTicks();
 
+	/*	Disable limit switching interrupt	*/
+	LimitSwitch_voidDisableInterrupt(&(CNC->limSwArr[0]));
+	LimitSwitch_voidDisableInterrupt(&(CNC->limSwArr[1]));
+	LimitSwitch_voidDisableInterrupt(&(CNC->limSwArr[2]));
 
+	/*	move z-axis up until it hits the limit switch	*/
+	while(!LimitSwitch_u8GetStatus(&(CNC->limSwArr[2])))
+	{
+		while(currentTime - CNC->stepperArr[2].lastTimeStamp < LIM_SW_TICKS_BETWEEN_STEPS)
+			currentTime = STK_u64GetElapsedTicks();
 
+		Stepper_voidStep(&(CNC->stepperArr[2]), Stepper_Direction_forward, currentTime);
+	}
+
+	Delay_voidBlockingDelayMs(100);
+
+	/*	move it forward to release the switch	*/
+	for (u32 i = 0; i < LIM_SW_RELEASE_DISTANCE; i++)
+	{
+		while(currentTime - CNC->stepperArr[2].lastTimeStamp < LIM_SW_TICKS_BETWEEN_STEPS)
+			currentTime = STK_u64GetElapsedTicks();
+
+		Stepper_voidStep(&(CNC->stepperArr[2]), Stepper_Direction_backward, currentTime);
+	}
+
+	/*	move x and y axis up until it hits the limit switch	*/
+	while(LimitSwitch_u8GetStatus(&(CNC->limSwArr[0])) || LimitSwitch_u8GetStatus(&(CNC->limSwArr[1])))
+	{
+		if (!LimitSwitch_u8GetStatus(&(CNC->limSwArr[0])))
+		{
+			if (currentTime - CNC->stepperArr[0].lastTimeStamp >= LIM_SW_TICKS_BETWEEN_STEPS)
+				Stepper_voidStep(&(CNC->stepperArr[0]), Stepper_Direction_backward, currentTime);
+		}
+
+		if (!LimitSwitch_u8GetStatus(&(CNC->limSwArr[1])))
+		{
+			if (currentTime - CNC->stepperArr[1].lastTimeStamp >= LIM_SW_TICKS_BETWEEN_STEPS)
+				Stepper_voidStep(&(CNC->stepperArr[1]), Stepper_Direction_backward, currentTime);
+		}
+
+		currentTime = STK_u64GetElapsedTicks();
+	}
+
+	Delay_voidBlockingDelayMs(100);
+
+	/*	move them forward to release the switch	*/
+	for (u32 i = 0; i < LIM_SW_RELEASE_DISTANCE; i++)
+	{
+		while(currentTime - CNC->stepperArr[0].lastTimeStamp < LIM_SW_TICKS_BETWEEN_STEPS)
+			currentTime = STK_u64GetElapsedTicks();
+
+		Stepper_voidStep(&(CNC->stepperArr[0]), Stepper_Direction_backward, currentTime);
+
+		while(currentTime - CNC->stepperArr[1].lastTimeStamp < LIM_SW_TICKS_BETWEEN_STEPS)
+			currentTime = STK_u64GetElapsedTicks();
+
+		Stepper_voidStep(&(CNC->stepperArr[1]), Stepper_Direction_backward, currentTime);
+	}
+
+	for (u8 i = 0; i < 3; i++)
+		CNC->stepperArr[i].currentPos = 0;
+
+	/*	Clear interrupt flags	*/
+	EXTI_CLEAR_FLAG(CNC->limSwArr[0].pin);
+	EXTI_CLEAR_FLAG(CNC->limSwArr[1].pin);
+	EXTI_CLEAR_FLAG(CNC->limSwArr[2].pin);
+
+	/*	Enable limit switching interrupt	*/
+	LimitSwitch_voidEnableInterrupt(&(CNC->limSwArr[0]));
+	LimitSwitch_voidEnableInterrupt(&(CNC->limSwArr[1]));
+	LimitSwitch_voidEnableInterrupt(&(CNC->limSwArr[2]));
+}
+
+void CNC_voidAskMovePrevZero(CNC_t* CNC)
+{
+	if(
+		UI_u8Interact(
+			&(CNC->ui),
+			"Move to the previously saved zero position and set it as the new zero?",
+			(char**)yesNochoicesArr, 2)	)
+	{
+		return;
+	}
+
+	/*	Retrieve previously saved zero from SD-card	*/
+	s32 dx, dy, dz;
+
+	SDC_voidKeepTryingReadStream(&(CNC->systemState), 0 * sizeof(s32), (u8*)&dx, sizeof(s32));
+	SDC_voidKeepTryingReadStream(&(CNC->systemState), 1 * sizeof(s32), (u8*)&dy, sizeof(s32));
+	SDC_voidKeepTryingReadStream(&(CNC->systemState), 2 * sizeof(s32), (u8*)&dz, sizeof(s32));
+
+	CNC_voidMove3Axis(CNC, dx, dy, dz, 0, 0, CNC->config.rapidSpeedMax, CNC->config.rapidAccel);
+
+	CNC->stepperArr[0].currentPos = 0;
+	CNC->stepperArr[1].currentPos = 0;
+	CNC->stepperArr[2].currentPos = 0;
+}
 
 
 

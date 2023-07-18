@@ -14,6 +14,7 @@
 #include "CNC_AutoLeveling_Config.h"
 #include "CNC_SDC_Config.h"
 #include "CNC_UI_Config.h"
+#include "CNC_Limit_Switches_Config.h"
 
 /*	error handler  (used in debugging)	*/
 /*	here lib layer's default is used	*/

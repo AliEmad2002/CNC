@@ -23,6 +23,7 @@ void Probe_voidInit(Probe_t* probe)
 		GPIO_voidSetPinInputPullDown(probe->port, probe->pin);
 }
 
+__attribute__((always_inline)) inline
 u8 Probe_u8GetStatus(Probe_t* probe)	// 0: open circuit, 1: closed circuit.
 {
 	volatile u8 pinState = GPIO_DIGITAL_READ(probe->port, probe->pin);

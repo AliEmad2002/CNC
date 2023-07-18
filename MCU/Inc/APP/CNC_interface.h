@@ -17,6 +17,7 @@
 #include "FPEC_interface.h"
 #include "UART_interface.h"
 #include "DMA_interface.h"
+#include "EXTI_interface.h"
 
 #include "Stepper_interface.h"
 #include "DC_Motor_Interface.h"
@@ -25,6 +26,7 @@
 #include "TFT_interface_V2.h"
 #include "Rotary_Encoder_Interface.h"
 #include "Button_interface.h"
+#include "Limit_Switch_interface.h"
 
 #include "G_code_interface.h"
 #include "CNC_config.h"
@@ -83,6 +85,8 @@ typedef struct
 
 	UI_t ui;
 	u32 manualSpeedArr[3];
+
+	LimitSwitch_t limSwArr[3];
 }CNC_t;
 
 typedef enum{
@@ -187,6 +191,6 @@ u8 CNC_u8AskNew();
 
 u8 CNC_u8AskFastScanMap();
 
-void CNC_voidInfProbing(CNC_t* CNC);
+void CNC_voidHomingSeq(CNC_t* CNC);
 
 #endif /* CNC_INTERFACE_H_ */
