@@ -762,18 +762,24 @@ void CNC_voidInit(CNC_t* CNC)
 	CNC->stepperArr[0].stepPin  = X_STEP_PIN % 16;
 	CNC->stepperArr[0].dirPort  = X_DIR_PIN  / 16;
 	CNC->stepperArr[0].dirPin   = X_DIR_PIN  % 16;
+	CNC->stepperArr[0].enPort	= X_EN_PIN  / 16;
+	CNC->stepperArr[0].enPin	= X_EN_PIN  % 16;
 	Stepper_voidInit(&(CNC->stepperArr[0]));
 
 	CNC->stepperArr[1].stepPort = Y_STEP_PIN / 16;
 	CNC->stepperArr[1].stepPin  = Y_STEP_PIN % 16;
 	CNC->stepperArr[1].dirPort  = Y_DIR_PIN  / 16;
 	CNC->stepperArr[1].dirPin   = Y_DIR_PIN  % 16;
+	CNC->stepperArr[1].enPort	= Y_EN_PIN  / 16;
+	CNC->stepperArr[1].enPin	= Y_EN_PIN  % 16;
 	Stepper_voidInit(&(CNC->stepperArr[1]));
 
 	CNC->stepperArr[2].stepPort = Z_STEP_PIN / 16;
 	CNC->stepperArr[2].stepPin  = Z_STEP_PIN % 16;
 	CNC->stepperArr[2].dirPort  = Z_DIR_PIN  / 16;
 	CNC->stepperArr[2].dirPin   = Z_DIR_PIN  % 16;
+	CNC->stepperArr[2].enPort	= Z_EN_PIN  / 16;
+	CNC->stepperArr[2].enPin	= Z_EN_PIN  % 16;
 	Stepper_voidInit(&(CNC->stepperArr[2]));
 
 	CNC->prevReceivedCoordinates[0] = 0;
@@ -788,16 +794,16 @@ void CNC_voidInit(CNC_t* CNC)
 		SPINDLE_PWM_TIM_CHANNEL, SPINDLE_PWM_AFIO_MAP);
 		
 	/*	SD card	*/
-	SDC_voidKeepTryingInitConnection(&(CNC->sdCard), 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
-	SDC_voidKeepTryingInitPartition(&(CNC->sdCard));
-
-	SDC_voidKeepTryingOpenStream(&(CNC->systemState), &(CNC->sdCard), "SYS.RFS");
-
-	/*	Trajectory RFS	*/
-	CNC->trajectory.numberOfPoints = 0;
-	SDC_voidKeepTryingOpenStream(&(CNC->trajectory.stream), &(CNC->sdCard), "TRAJ.RFS");
-	Trajectory_Point_t p = {0, 0, 0, 0};
-	Trajectory_voidReset(&(CNC->trajectory), &p);
+//	SDC_voidKeepTryingInitConnection(&(CNC->sdCard), 1, SPI_UnitNumber_1, SD_CS_PIN, SD_AFIO_MAP);
+//	SDC_voidKeepTryingInitPartition(&(CNC->sdCard));
+//
+//	SDC_voidKeepTryingOpenStream(&(CNC->systemState), &(CNC->sdCard), "SYS.RFS");
+//
+//	/*	Trajectory RFS	*/
+//	CNC->trajectory.numberOfPoints = 0;
+//	SDC_voidKeepTryingOpenStream(&(CNC->trajectory.stream), &(CNC->sdCard), "TRAJ.RFS");
+//	Trajectory_Point_t p = {0, 0, 0, 0};
+//	Trajectory_voidReset(&(CNC->trajectory), &p);
 
 	/*
 	 * relative positioning and auto leveling are initially turned off, to
@@ -819,7 +825,7 @@ void CNC_voidInit(CNC_t* CNC)
 	for (u16 i = 0; i < MAP_LEN; i++)
 		mapArr[i] = 0;
 
-	SDC_voidKeepTryingOpenStream(&(CNC->map.stream), &(CNC->sdCard), "MAP.RFS");
+	//SDC_voidKeepTryingOpenStream(&(CNC->map.stream), &(CNC->sdCard), "MAP.RFS");
 
 	/*	obviously, machine've just started	*/
 	CNC->speedCurrent = 0;

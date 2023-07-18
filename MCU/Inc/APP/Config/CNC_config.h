@@ -9,7 +9,6 @@
 #ifndef CNC_CONFIG_H_
 #define CNC_CONFIG_H_
 
-#include "CNC_UART_Config.h"
 #include "CNC_Steppers_Config.h"
 #include "CNC_AutoLeveling_Config.h"
 #include "CNC_SDC_Config.h"

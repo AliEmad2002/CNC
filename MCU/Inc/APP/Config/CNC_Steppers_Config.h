@@ -10,18 +10,22 @@
 
 
 /*	stepper motor drivers' pins (slave in our poor pathetic case)	*/
-#define Z_STEP_PIN							GPIO_Pin_A4
-#define Z_DIR_PIN							GPIO_Pin_B10
 
-#define X_STEP_PIN							GPIO_Pin_A2
-#define X_DIR_PIN							GPIO_Pin_A3
+#define X_DIR_PIN							GPIO_Pin_B3
+#define X_STEP_PIN							GPIO_Pin_B4
+#define X_EN_PIN							GPIO_Pin_B5
 
-#define Y_STEP_PIN							GPIO_Pin_A1
 #define Y_DIR_PIN							GPIO_Pin_A0
+#define Y_STEP_PIN							GPIO_Pin_A1
+#define Y_EN_PIN							GPIO_Pin_A8
+
+#define Z_DIR_PIN							GPIO_Pin_A11
+#define Z_STEP_PIN							GPIO_Pin_A12
+#define Z_EN_PIN							GPIO_Pin_A15
 
 /*	spindles driving PWM signal	*/
-#define SPINDLE_PWM_TIM_UNIT_NUMBER			1
-#define SPINDLE_PWM_TIM_CHANNEL				TIM_Channel_3
+#define SPINDLE_PWM_TIM_UNIT_NUMBER			4
+#define SPINDLE_PWM_TIM_CHANNEL				TIM_Channel_1
 #define SPINDLE_PWM_AFIO_MAP				0
 
 /*	How frequently will speed be changed, in steps	*/
