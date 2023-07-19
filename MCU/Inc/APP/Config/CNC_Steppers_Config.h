@@ -19,9 +19,9 @@
 #define Y_STEP_PIN							GPIO_Pin_A1
 #define Y_EN_PIN							GPIO_Pin_A8
 
-#define Z_DIR_PIN							GPIO_Pin_A11
-#define Z_STEP_PIN							GPIO_Pin_A12
-#define Z_EN_PIN							GPIO_Pin_A15
+#define Z_DIR_PIN							GPIO_Pin_A9
+#define Z_STEP_PIN							GPIO_Pin_A8
+#define Z_EN_PIN							GPIO_Pin_A10
 
 /*	spindles driving PWM signal	*/
 #define SPINDLE_PWM_TIM_UNIT_NUMBER			4

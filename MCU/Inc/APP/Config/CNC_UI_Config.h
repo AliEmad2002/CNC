@@ -16,8 +16,8 @@
 
 #define TFT_SPI_UNIT_NUMBER					SPI_UnitNumber_2
 #define TFT_SPI_AFIO_MAP					0
-#define TFT_RST_PIN							GPIO_Pin_B12
-#define TFT_A0_PIN							GPIO_Pin_B14
+#define TFT_RST_PIN							GPIO_Pin_C14
+#define TFT_A0_PIN							GPIO_Pin_C13
 #define TFT_TIM_UNIT_NUMBER					1
 #define TFT_TIM_CHANNEL_NUMBER				1
 #define TFT_TIM_AFIO_MAP					0

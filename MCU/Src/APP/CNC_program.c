@@ -863,16 +863,16 @@ void CNC_voidInit(CNC_t* CNC)
 	CNC->limSwArr[2].port = Z_LIM_PIN / 16;
 	CNC->limSwArr[2].pin  = Z_LIM_PIN % 16;
 
-	LimitSwitch_voidInit((void*)CNC, limit_switch_callback);
-	LimitSwitch_voidInit((void*)CNC, limit_switch_callback);
-	LimitSwitch_voidInit((void*)CNC, limit_switch_callback);
+	LimitSwitch_voidInit(&(CNC->limSwArr[0]), limit_switch_callback, (void*)CNC);
+	LimitSwitch_voidInit(&(CNC->limSwArr[1]), limit_switch_callback, (void*)CNC);
+	LimitSwitch_voidInit(&(CNC->limSwArr[2]), limit_switch_callback, (void*)CNC);
 
 	/*	Run homing sequence, and reset steppers position values	*/
 	Stepper_voidEnable(&(CNC->stepperArr[0]));
 	Stepper_voidEnable(&(CNC->stepperArr[1]));
 	Stepper_voidEnable(&(CNC->stepperArr[2]));
 
-	CNC_voidHomingSeq(CNC);
+	//CNC_voidHomingSeq(CNC);
 
 	Stepper_voidDisable(&(CNC->stepperArr[0]));
 	Stepper_voidDisable(&(CNC->stepperArr[1]));

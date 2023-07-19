@@ -15,7 +15,7 @@ typedef struct{
 	u8 openCirciutLevel : 1;
 }LimitSwitch_t;
 
-void LimitSwitch_voidInit(LimitSwitch_t* sw, void(*callback)(void*));
+void LimitSwitch_voidInit(LimitSwitch_t* sw, void(*callback)(void*), void* paramsPtr);
 
 void LimitSwitch_voidEnableInterrupt(LimitSwitch_t* sw);
 

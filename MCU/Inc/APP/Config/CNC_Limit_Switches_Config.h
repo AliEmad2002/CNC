@@ -9,9 +9,9 @@
 #define INCLUDE_APP_CONFIG_CNC_LIMIT_SWITCHES_CONFIG_H_
 
 
-#define	X_LIM_PIN						GPIO_Pin_A0
-#define	Y_LIM_PIN						GPIO_Pin_A0
-#define	Z_LIM_PIN						GPIO_Pin_A0
+#define	X_LIM_PIN						GPIO_Pin_A4
+#define	Y_LIM_PIN						GPIO_Pin_A3
+#define	Z_LIM_PIN						GPIO_Pin_A2
 
 #define LIM_SW_TICKS_BETWEEN_STEPS		(3200 * (72 / 8))
 

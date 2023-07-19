@@ -17,11 +17,11 @@
 /*	SELF	*/
 #include "Limit_Switch_interface.h"
 
-void LimitSwitch_voidInit(LimitSwitch_t* sw, void(*callback)(void*))
+void LimitSwitch_voidInit(LimitSwitch_t* sw, void(*callback)(void*), void* paramsPtr)
 {
 	EXTI_voidEnableLine(sw->pin);
 	EXTI_voidMapLine(sw->pin, sw->port);
-	EXTI_voidSetCallBack(sw->pin, callback, sw);
+	EXTI_voidSetCallBack(sw->pin, callback, paramsPtr);
 
 	if (sw->openCirciutLevel == 1)
 	{

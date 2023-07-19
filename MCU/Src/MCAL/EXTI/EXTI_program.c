@@ -104,7 +104,7 @@ void EXTI_voidSoftwareTrigger(u8 line)
 	SET_BIT(EXTI->SWIER, line);
 }
 
-void EXTI_voidSetCallBack(u8 line, void(*callBack)(void), void* args)
+void EXTI_voidSetCallBack(u8 line, void(*callBack)(void*), void* args)
 {
 	EXTI_callback[line] = callBack;
 	EXTI_args[line] = args;
