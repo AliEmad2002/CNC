@@ -4,6 +4,3 @@ This SW runs CNC milling and drilling machine by G-Code interfacing*.
 
 # 2. Target
 Mainly targeted for STM32F103 MCU.
-
-# 3. Features:
-Each of the following will be discussed later.
