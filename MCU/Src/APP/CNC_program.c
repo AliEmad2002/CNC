@@ -960,6 +960,9 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	if (CNC->config.autoLevelingEnabled)
 		return;
 
+	/*	Enable auto leveling	*/
+	CNC->config.autoLevelingEnabled = 1;
+
 #if !SIMULATION_ON
 	/**
 	 * initially probe on (x, y) = (0, 0), and re-set z-displacement variable.
