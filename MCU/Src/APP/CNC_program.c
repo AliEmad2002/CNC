@@ -990,9 +990,11 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	CNC->stepperArr[Z].currentPos = 0;
 
 	/*	Restore map from SD-card?	*/
+	UART_voidDisableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 	UART_voidSendString(UART_UNIT_NUMBER, "\r\nRstore map from SD-card? (y/other): ");
 	char ch = '\0';
 	UART_enumReciveByte(UART_UNIT_NUMBER, &ch);
+	UART_voidEnableInterrupt(UART_UNIT_NUMBER, UART_Interrupt_RXNE);
 	if (ch == 'y' || ch == 'Y')
 	{
 		LevelMap_voidRestoreFromSDCard(&CNC->map);
@@ -1000,8 +1002,6 @@ void CNC_voidExecuteAutoLevelingSampling(CNC_t* CNC)
 	}
 
 	/**	init params	**/
-	CNC->config.autoLevelingEnabled = 1;
-
 	/*	N = V + 3	(G-Code convention)	*/
 	CNC->map.nX = (u8)CNC->point[4] + 3;
 	CNC->map.nY = (u8)CNC->point[5] + 3;
